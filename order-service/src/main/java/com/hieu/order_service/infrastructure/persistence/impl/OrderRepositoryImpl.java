@@ -129,4 +129,9 @@ public class OrderRepositoryImpl implements OrderRepository {
     public boolean existsByUserIdAndProductId(String userId, Long productId) {
         return jpa.existsByUserIdAndProductId(userId, productId);
     }
+
+    @Override
+    public long countCancelledByUserSince(UserId userId, Instant since) {
+        return jpa.countCancelledByUserSince(userId.value(), since);
+    }
 }

@@ -1,0 +1,82 @@
+# syntax=docker/dockerfile:1.7
+
+# =========================================================================
+# Stage 1 — BUILDER: compile common-lib + auth-service with Maven cache
+# =========================================================================
+FROM eclipse-temurin:25-jdk AS builder
+
+WORKDIR /workspace
+
+# Install common-lib first so Maven local repo has it before building auth-service.
+# We copy only pom.xml of each module first to leverage Docker layer cache:
+# dependencies are re-downloaded only when poms change, not when source changes.
+COPY common-lib/pom.xml common-lib/pom.xml
+COPY auth-service/pom.xml auth-service/pom.xml
+COPY auth-service/.mvn   auth-service/.mvn
+COPY auth-service/mvnw   auth-service/mvnw
+
+# Warm Maven dependency cache. BuildKit cache mount keeps ~/.m2 across builds
+# without baking it into the image layer (-> smaller image + faster rebuilds).
+RUN --mount=type=cache,target=/root/.m2 \
+    cd auth-service && ./mvnw -B -q dependency:go-offline -DskipTests || true
+
+# Now copy source and build. common-lib is installed to local repo first.
+COPY common-lib/src   common-lib/src
+COPY auth-service/src auth-service/src
+
+RUN --mount=type=cache,target=/root/.m2 \
+    cd common-lib && ../auth-service/mvnw -B -q install -DskipTests && \
+    cd ../auth-service && ./mvnw -B -q clean package -DskipTests
+
+# Extract Spring Boot layered jar -> better layer caching at runtime stage.
+RUN cd auth-service/target && \
+    java -Djarmode=tools -jar auth-service-*.jar extract --layers --destination extracted
+
+
+# =========================================================================
+# Stage 2 — RUNTIME: minimal JRE + non-root user + tini
+# =========================================================================
+FROM eclipse-temurin:25-jre-alpine AS runtime
+
+# tini = init process for proper signal handling (Ctrl+C, docker stop SIGTERM)
+# wget = used by HEALTHCHECK below
+RUN apk add --no-cache tini wget && \
+    addgroup -S -g 1001 spring && \
+    adduser  -S -u 1001 -G spring -h /app -s /sbin/nologin spring
+
+WORKDIR /app
+
+# Copy extracted layers in order of change frequency (least -> most).
+# Each COPY becomes its own layer; deps rarely change so they stay cached.
+ARG EXTRACTED=/workspace/auth-service/target/extracted
+COPY --from=builder --chown=spring:spring ${EXTRACTED}/dependencies/         ./
+COPY --from=builder --chown=spring:spring ${EXTRACTED}/spring-boot-loader/   ./
+COPY --from=builder --chown=spring:spring ${EXTRACTED}/snapshot-dependencies/ ./
+COPY --from=builder --chown=spring:spring ${EXTRACTED}/application/          ./
+
+# Switch to non-root BEFORE the app runs. Container best practice — limits
+# blast radius if the app gets RCE'd.
+USER spring:spring
+
+# 8081 = HTTP (Tomcat) | 9091 = gRPC server
+EXPOSE 8081 9091
+
+# Container-aware JVM flags. Spring Boot 3.x+ already auto-detects cgroup
+# limits, but pinning these makes resource usage predictable.
+ENV JAVA_TOOL_OPTIONS="\
+    -XX:MaxRAMPercentage=75.0 \
+    -XX:InitialRAMPercentage=50.0 \
+    -XX:+UseG1GC \
+    -XX:+ExitOnOutOfMemoryError \
+    -Djava.security.egd=file:/dev/./urandom \
+    -Dfile.encoding=UTF-8 \
+    -Duser.timezone=Asia/Ho_Chi_Minh"
+
+# Healthcheck via Spring Actuator. Container marked unhealthy after 3
+# consecutive failures -> orchestrator (k8s/swarm) restarts it.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+    CMD wget -q -O - http://127.0.0.1:8081/actuator/health | grep -q '"status":"UP"' || exit 1
+
+# tini as PID 1 -> forwards SIGTERM to JVM -> graceful shutdown.
+# Exec form (no shell) so signals reach the JVM, not a wrapper /bin/sh.
+ENTRYPOINT ["/sbin/tini", "--", "java", "org.springframework.boot.loader.launch.JarLauncher"]

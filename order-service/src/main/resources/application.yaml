@@ -136,3 +136,10 @@ logging:
     org.hibernate.SQL: WARN
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} %-5level [%thread] %logger{30} - %msg%n"
+
+# Shared SePay QR template — same bank as payment-service so QR URLs match.
+sepay:
+  qr-base-url:  ${SEPAY_QR_BASE_URL:https://qr.sepay.vn/img}
+  bank-code:    ${SEPAY_BANK_CODE:BIDV}
+  bank-account: ${SEPAY_BANK_ACCOUNT:96247CISI1}
+  account-name: ${SEPAY_ACCOUNT_NAME:TO TRONG HIEU}

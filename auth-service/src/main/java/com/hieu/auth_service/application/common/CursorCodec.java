@@ -50,8 +50,7 @@ public final class CursorCodec {
         String raw = epochMicros + DELIM + id;
         return Base64.getUrlEncoder().withoutPadding()
                 .encodeToString(raw.getBytes(StandardCharsets.UTF_8));
-    }
-
+    } 
     /**
      * Decodes an opaque cursor. Returns {@code null} for blank input (first page).
      *

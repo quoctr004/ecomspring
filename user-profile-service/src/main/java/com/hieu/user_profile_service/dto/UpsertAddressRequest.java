@@ -1,5 +1,6 @@
 package com.hieu.user_profile_service.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
@@ -24,5 +25,6 @@ public class UpsertAddressRequest {
 
     private String country;
     private String postalCode;
+    @JsonProperty("isDefault")
     private boolean isDefault;
 }

@@ -27,4 +27,11 @@ public interface OrderRepository {
     List<OrderId> findFirstPageIdsByUserId(UserId userId, int limit);
     List<OrderId> findIdsAfterCursorByUserId(UserId userId, Instant createdAt, Long id, int limit);
     boolean existsByUserIdAndProductId(String userId, Long productId);
+
+    /**
+     * Counts orders cancelled by the given user since the cutoff. Used to
+     * rate-limit customer-initiated cancellations (e.g. cap at 3 per 24h) so
+     * the inventory reservation churn doesn't become a DoS vector.
+     */
+    long countCancelledByUserSince(UserId userId, Instant since);
 }

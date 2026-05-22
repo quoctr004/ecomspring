@@ -4,12 +4,15 @@ import com.hieu.order_service.application.common.DomainEventPublisher;
 import com.hieu.order_service.domain.exception.OrderNotFoundException;
 import com.hieu.order_service.domain.model.order.valueobject.OrderNumber;
 import com.hieu.order_service.domain.repository.OrderRepository;
+import com.hieu.order_service.infrastructure.grpc.client.CartGrpcClient;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.Map;
 
@@ -22,6 +25,7 @@ public class PaymentEventConsumer {
 
     private final OrderRepository orderRepository;
     private final DomainEventPublisher eventPublisher;
+    private final CartGrpcClient cartGrpcClient;
 
     @KafkaListener(topics = {"payment.completed", "payment.failed"}, groupId = "order-service")
     @Transactional
@@ -48,5 +52,19 @@ public class PaymentEventConsumer {
 
         var saved = orderRepository.save(order);
         eventPublisher.publishEventsOf(saved);
+
+        // On a successful payment, drop the ordered items from the user's cart
+        // so the next checkout starts clean. Defer to AFTER_COMMIT so we never
+        // wipe the cart if the order state transition rolls back. clearCart()
+        // already swallows transport errors — cart can be cleared manually if
+        // the gRPC call fails.
+        if ("payment.completed".equals(topic)) {
+            String userId = saved.getUserId().value();
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override public void afterCommit() {
+                    cartGrpcClient.clearCart(userId);
+                }
+            });
+        }
     }
 }

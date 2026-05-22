@@ -14,8 +14,25 @@ import java.util.List;
 @Component
 public class OrderDtoMapper {
 
+    private final SepayQrHelper sepayQrHelper;
+
+    public OrderDtoMapper(SepayQrHelper sepayQrHelper) {
+        this.sepayQrHelper = sepayQrHelper;
+    }
+
     public OrderDTO toDto(Order order) {
-        return toDto(order, null, null);
+        // Re-derive the SePay QR on read so the storefront's resume-payment
+        // page (loaded from /api/orders/by-number) still gets a working URL —
+        // the saga's create response is the only place the explicit qrCodeUrl
+        // is plumbed in.
+        String qrCodeUrl = null;
+        if ("PAYMENT_PENDING".equals(order.getStatus().name())
+                && sepayQrHelper.isBankTransfer(order.getPaymentMethod())) {
+            qrCodeUrl = sepayQrHelper.generate(
+                    order.getOrderNumber().value(),
+                    order.getTotalAmount().amount());
+        }
+        return toDto(order, null, qrCodeUrl);
     }
 
     public OrderDTO toDto(Order order, String payUrl, String qrCodeUrl) {

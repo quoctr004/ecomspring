@@ -75,6 +75,25 @@ momo:
 payment:
   momo:
     secret-key: ${MOMO_SECRET_KEY:}
+  # Storefront-facing payment method catalog. Toggle `enabled` to hide a
+  # provider without redeploying the FE. Admin UI can later overlay these
+  # defaults via a DB-backed override table.
+  methods:
+    - code: COD
+      name: "Thanh toán khi nhận hàng (COD)"
+      description: "Trả tiền mặt khi nhận hàng"
+      icon: "payments"
+      enabled: true
+    - code: SEPAY
+      name: "Chuyển khoản ngân hàng (SePay)"
+      description: "Quét QR/VietQR — tự xác nhận khi tiền về"
+      icon: "qr_code_2"
+      enabled: true
+    - code: MOMO
+      name: "Ví MoMo"
+      description: "Thanh toán qua ví MoMo"
+      icon: "account_balance_wallet"
+      enabled: true
 
 # OpenAPI
 springdoc:
@@ -100,3 +119,5 @@ logging:
     org.hibernate.SQL: WARN
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} %-5level [%thread] %logger{30} - %msg%n"
+
+# (payment.methods merged into the earlier `payment:` block above)

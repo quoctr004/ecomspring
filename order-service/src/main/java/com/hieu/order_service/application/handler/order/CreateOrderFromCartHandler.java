@@ -36,6 +36,14 @@ public class CreateOrderFromCartHandler implements CommandHandler<CreateOrderFro
                 cmd.street(), cmd.ward(), cmd.district(), cmd.city(), cmd.country(), cmd.postalCode(),
                 cmd.paymentMethod(), cmd.notes(), cmd.voucherCode(), cmd.idempotencyKey(), cmd.authToken()
         );
-        return createOrderHandler.handle(orderCmd);
+        OrderDTO dto = createOrderHandler.handle(orderCmd);
+
+        // Order placed successfully → empty the cart immediately. For SePay/MoMo
+        // the PaymentEventConsumer also clears on payment.completed, so this is
+        // a no-op then; for COD the payment flow may never fire so this is the
+        // sole place that wipes the cart. clearCart() swallows transport errors.
+        cartGrpcClient.clearCart(cmd.userId());
+
+        return dto;
     }
 }

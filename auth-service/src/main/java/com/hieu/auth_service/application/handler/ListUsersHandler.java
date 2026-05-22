@@ -1,5 +1,11 @@
 package com.hieu.auth_service.application.handler;
 
+import java.time.Instant;
+import java.util.List;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.hieu.auth_service.application.common.CursorCodec;
 import com.hieu.auth_service.application.common.QueryHandler;
 import com.hieu.auth_service.application.dto.PageDTO;
@@ -9,12 +15,8 @@ import com.hieu.auth_service.application.query.ListUsersQuery;
 import com.hieu.auth_service.domain.models.user.User;
 import com.hieu.auth_service.domain.repositories.RoleRepository;
 import com.hieu.auth_service.domain.repositories.UserRepository;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant;
-import java.util.List;
+import lombok.RequiredArgsConstructor;
 
 /**
  * Lists users with keyset (cursor) pagination.
@@ -51,7 +53,7 @@ public class ListUsersHandler implements QueryHandler<ListUsersQuery, PageDTO<Us
 
         boolean hasNext = rows.size() > pageSize;
         List<User> pageRows = hasNext ? rows.subList(0, pageSize) : rows;
-
+        
         List<UserDTO> items = pageRows.stream()
                 .map(u -> userDtoMapper.toDto(u, roleRepository.findByIdIn(u.getRoles())))
                 .toList();

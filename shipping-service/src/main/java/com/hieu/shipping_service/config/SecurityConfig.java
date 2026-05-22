@@ -38,6 +38,9 @@ public class SecurityConfig {
                 // Public
                 .requestMatchers(HttpMethod.GET,  "/api/shipments/tracking/**").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/shipments/internal").permitAll()
+                // Shipping fee quote — checkout uses this before login completes
+                .requestMatchers(HttpMethod.GET,  "/api/shipping/carriers").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/shipping/calculate-fee").permitAll()
                 // Docs + ops
                 .requestMatchers(
                     "/actuator/**",

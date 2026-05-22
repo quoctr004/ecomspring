@@ -36,6 +36,7 @@ public class OrderController {
     private final CreateOrderHandler createOrderHandler;
     private final CreateOrderFromCartHandler createOrderFromCartHandler;
     private final CancelOrderHandler cancelOrderHandler;
+    private final com.hieu.order_service.application.handler.order.AdminOrderActionHandler adminOrderActionHandler;
     private final GetOrderByIdHandler getOrderByIdHandler;
     private final GetOrderByIdInternalHandler getOrderByIdInternalHandler;
     private final GetOrderByNumberHandler getOrderByNumberHandler;
@@ -135,6 +136,31 @@ public class OrderController {
         return getOrderByNumberHandler.handle(new GetOrderByNumberQuery(orderNumber, user.userId(), isAdmin));
     }
 
+    /**
+     * PUBLIC tracking endpoint — no JWT required. Phone is the verification
+     * challenge: caller must supply the {@code recipientPhone} the order was
+     * placed with, otherwise we return 403 (a leaked order number alone is
+     * not enough to read someone's status).
+     *
+     * <p>Used by /track on the storefront so guest checkout and pre-shipment
+     * orders can still see their state without logging in.
+     */
+    @GetMapping("/track/{orderNumber}")
+    public OrderDTO track(@PathVariable String orderNumber, @RequestParam("phone") String phone) {
+        if (phone == null || phone.isBlank()) {
+            throw new AccessDeniedException("phone required");
+        }
+        var raw = orderRepo.findByOrderNumber(orderNumber)
+                .orElseThrow(() -> new com.hieu.order_service.domain.exception.OrderNotFoundException(orderNumber));
+        if (raw.getRecipientPhone() == null || !raw.getRecipientPhone().equals(phone.trim())) {
+            throw new AccessDeniedException("Phone does not match the order");
+        }
+        // Pass isAdmin=true to bypass ownership inside the handler — the
+        // phone check above is the real authentication gate.
+        return getOrderByNumberHandler.handle(
+                new GetOrderByNumberQuery(orderNumber, raw.getUserId(), true));
+    }
+
     @GetMapping("/{id}/internal")
     public OrderDTO getInternal(@PathVariable Long id,
                                 @RequestHeader(value = "X-Internal-Token", required = false) String token) {
@@ -149,6 +175,39 @@ public class OrderController {
                                 @AuthenticationPrincipal AuthenticatedUser user) {
         var isAdmin = user.roles().contains(ROLE_ADMIN);
         return cancelOrderHandler.handle(new CancelOrderCommand(id, body.get("reason"), user.userId(), isAdmin));
+    }
+
+    /**
+     * Admin-only manual state nudges. Each goes through the aggregate's state
+     * machine so illegal transitions (e.g. deliver-without-ship) get rejected
+     * with 400 instead of corrupting the order.
+     */
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
+    @PostMapping("/{id}/confirm")
+    public OrderDTO adminConfirm(@PathVariable Long id) {
+        return adminOrderActionHandler.apply(id,
+                com.hieu.order_service.application.handler.order.AdminOrderActionHandler.Action.CONFIRM, null);
+    }
+
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
+    @PostMapping("/{id}/ship")
+    public OrderDTO adminShip(@PathVariable Long id, @RequestBody(required = false) Map<String, Object> body) {
+        Long shipmentId = null;
+        if (body != null && body.get("shipmentId") != null) {
+            shipmentId = Long.valueOf(body.get("shipmentId").toString());
+        }
+        // Fallback: synthesize a placeholder shipmentId from the order id so the
+        // admin can still mark SHIPPED in dev when shipping-service isn't wired.
+        if (shipmentId == null) shipmentId = id * 1_000L + System.currentTimeMillis() % 1000;
+        return adminOrderActionHandler.apply(id,
+                com.hieu.order_service.application.handler.order.AdminOrderActionHandler.Action.SHIP, shipmentId);
+    }
+
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
+    @PostMapping("/{id}/deliver")
+    public OrderDTO adminDeliver(@PathVariable Long id) {
+        return adminOrderActionHandler.apply(id,
+                com.hieu.order_service.application.handler.order.AdminOrderActionHandler.Action.DELIVER, null);
     }
 
     @GetMapping("/my")

@@ -84,4 +84,55 @@ public interface ProductJpaRepository extends JpaRepository<ProductJpaEntity, Lo
            ORDER BY p.createdAt DESC, p.id DESC
            """)
     List<ProductJpaEntity> findAllByIdInWithVariants(@Param("ids") List<Long> ids);
+
+    // ── Sorted offset pagination (price / name) ───────────────────────────────
+    // Sort over MIN(variant.price) per product. Category filter is optional;
+    // we duplicate the four ORDER BY directions because JPQL doesn't support
+    // dynamic sort columns and Spring's Pageable+Sort on aggregate columns is
+    // brittle. Two queries per sort × category-or-not (= 4 each) is verbose
+    // but predictable.
+
+    @Query("""
+           SELECT p.id FROM ProductJpaEntity p
+           LEFT JOIN p.variants v
+           WHERE p.status <> 'DELETED'
+             AND (:categoryId IS NULL OR p.categoryId = :categoryId)
+           GROUP BY p.id, p.name, p.createdAt
+           ORDER BY MIN(COALESCE(v.salePrice, v.price)) ASC, p.id ASC
+           """)
+    List<Long> findIdsSortedPriceAsc(@Param("categoryId") Long categoryId, Pageable pageable);
+
+    @Query("""
+           SELECT p.id FROM ProductJpaEntity p
+           LEFT JOIN p.variants v
+           WHERE p.status <> 'DELETED'
+             AND (:categoryId IS NULL OR p.categoryId = :categoryId)
+           GROUP BY p.id, p.name, p.createdAt
+           ORDER BY MIN(COALESCE(v.salePrice, v.price)) DESC, p.id DESC
+           """)
+    List<Long> findIdsSortedPriceDesc(@Param("categoryId") Long categoryId, Pageable pageable);
+
+    @Query("""
+           SELECT p.id FROM ProductJpaEntity p
+           WHERE p.status <> 'DELETED'
+             AND (:categoryId IS NULL OR p.categoryId = :categoryId)
+           ORDER BY p.name ASC, p.id ASC
+           """)
+    List<Long> findIdsSortedNameAsc(@Param("categoryId") Long categoryId, Pageable pageable);
+
+    @Query("""
+           SELECT p.id FROM ProductJpaEntity p
+           WHERE p.status <> 'DELETED'
+             AND (:categoryId IS NULL OR p.categoryId = :categoryId)
+           ORDER BY p.name DESC, p.id DESC
+           """)
+    List<Long> findIdsSortedNameDesc(@Param("categoryId") Long categoryId, Pageable pageable);
+
+    @Query("""
+           SELECT p.id FROM ProductJpaEntity p
+           WHERE p.status <> 'DELETED'
+             AND (:categoryId IS NULL OR p.categoryId = :categoryId)
+           ORDER BY p.createdAt DESC, p.id DESC
+           """)
+    List<Long> findIdsSortedNewest(@Param("categoryId") Long categoryId, Pageable pageable);
 }

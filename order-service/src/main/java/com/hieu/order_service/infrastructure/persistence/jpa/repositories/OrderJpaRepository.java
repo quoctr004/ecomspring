@@ -78,4 +78,13 @@ public interface OrderJpaRepository extends JpaRepository<OrderJpaEntity, Long> 
          GROUP BY o.userId
         """)
     List<CustomerStatsView> aggregateByUser(@Param("userIds") java.util.Collection<String> userIds);
+
+    @Query("""
+           SELECT COUNT(o) FROM OrderJpaEntity o
+           WHERE o.userId = :userId
+             AND o.status = 'CANCELLED'
+             AND o.cancelledAt >= :since
+           """)
+    long countCancelledByUserSince(@Param("userId") String userId,
+                                   @Param("since") java.time.Instant since);
 }

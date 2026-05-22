@@ -79,3 +79,13 @@ management:
 
 order-service:
   base-url: ${ORDER_SERVICE_URL:http://localhost:8085}
+
+ghtk:
+  base-url: ${GHTK_BASE_URL:https://services.giaohangtietkiem.vn}
+  token: ${GHTK_TOKEN:}
+  transport: ${GHTK_TRANSPORT:road}
+  pick:
+    province: ${GHTK_PICK_PROVINCE:Hà Nội}
+    district: ${GHTK_PICK_DISTRICT:Cầu Giấy}
+    ward:     ${GHTK_PICK_WARD:Dịch Vọng Hậu}
+    address:  ${GHTK_PICK_ADDRESS:Số 1 Trần Thái Tông}

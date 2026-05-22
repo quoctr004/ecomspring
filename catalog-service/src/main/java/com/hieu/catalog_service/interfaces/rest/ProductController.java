@@ -55,12 +55,15 @@ public class ProductController {
     private final QueryHandler<GetProductBySlugQuery, ProductDTO> getBySlug;
     private final QueryHandler<ListProductsQuery, PageDTO<ProductSummaryDTO>> listProducts;
 
-    @Operation(summary = "List products (cursor pagination)")
+    @Operation(summary = "List products (cursor pagination; sort=newest|priceAsc|priceDesc|nameAsc|nameDesc)")
     @GetMapping
     public ResponseEntity<PageDTO<ProductSummaryDTO>> list(
             @RequestParam(required = false) String cursor,
-            @RequestParam(defaultValue = "20") int limit) {
-        return ResponseEntity.ok(listProducts.handle(new ListProductsQuery(cursor, limit)));
+            @RequestParam(defaultValue = "20") int limit,
+            @RequestParam(required = false) String sort,
+            @RequestParam(required = false) Long categoryId) {
+        return ResponseEntity.ok(listProducts.handle(
+                new ListProductsQuery(cursor, limit, sort, categoryId)));
     }
 
     @Operation(summary = "Get product by id")

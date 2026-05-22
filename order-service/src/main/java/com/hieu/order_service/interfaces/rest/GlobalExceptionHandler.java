@@ -50,6 +50,16 @@ public class GlobalExceptionHandler {
         return body(HttpStatus.BAD_REQUEST, ex.code(), ex.getMessage(), req, null);
     }
 
+    @ExceptionHandler(CancelNotAllowedException.class)
+    public ResponseEntity<ErrorResponse> cancelNotAllowed(CancelNotAllowedException ex, HttpServletRequest req) {
+        return body(HttpStatus.CONFLICT, "ORDER-CANCEL-NOT-ALLOWED", ex.getMessage(), req, null);
+    }
+
+    @ExceptionHandler(CancelRateLimitedException.class)
+    public ResponseEntity<ErrorResponse> cancelRateLimited(CancelRateLimitedException ex, HttpServletRequest req) {
+        return body(HttpStatus.TOO_MANY_REQUESTS, "ORDER-CANCEL-RATE-LIMIT", ex.getMessage(), req, null);
+    }
+
     @ExceptionHandler({ServiceUnavailableException.class})
     public ResponseEntity<ErrorResponse> serviceUnavailable(DomainException ex, HttpServletRequest req) {
         return body(HttpStatus.SERVICE_UNAVAILABLE, ex.code(), ex.getMessage(), req, null);

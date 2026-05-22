@@ -1,5 +1,11 @@
 package com.hieu.auth_service.application.handler;
 
+import java.util.List;
+import java.util.stream.Collectors;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.hieu.auth_service.application.common.QueryHandler;
 import com.hieu.auth_service.application.dto.UserDTO;
 import com.hieu.auth_service.application.mapper.UserDtoMapper;
@@ -9,12 +15,8 @@ import com.hieu.auth_service.domain.models.user.vo.UserId;
 import com.hieu.auth_service.domain.repositories.PermissionRepository;
 import com.hieu.auth_service.domain.repositories.RoleRepository;
 import com.hieu.auth_service.domain.repositories.UserRepository;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
-import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
 
 /**
  * Fetches a user's profile by id, including role and effective-permission names.

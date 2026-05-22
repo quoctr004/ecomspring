@@ -1,15 +1,7 @@
 package com.hieu.auth_service.interfaces.rest.filter;
 
-import com.hieu.auth_service.application.port.TokenBlacklistPort;
-import com.hieu.auth_service.domain.services.TokenProviderPort;
-import com.hieu.auth_service.infrastructure.security.AuthUserDetails;
-import com.hieu.auth_service.infrastructure.security.CustomUserDetailsService;
-import com.hieu.auth_service.interfaces.rest.support.AuthCookieWriter;
-import jakarta.servlet.FilterChain;
-import jakarta.servlet.ServletException;
-import jakarta.servlet.http.Cookie;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -20,7 +12,17 @@ import org.springframework.security.web.authentication.WebAuthenticationDetailsS
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
-import java.io.IOException;
+import com.hieu.auth_service.application.port.TokenBlacklistPort;
+import com.hieu.auth_service.domain.services.TokenProviderPort;
+import com.hieu.auth_service.infrastructure.security.AuthUserDetails;
+import com.hieu.auth_service.infrastructure.security.CustomUserDetailsService;
+import com.hieu.auth_service.interfaces.rest.support.AuthCookieWriter;
+
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 
 /**
  * Stateless JWT authentication filter that integrates cleanly with Spring Security.

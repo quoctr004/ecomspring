@@ -102,6 +102,20 @@ public class ProductRepositoryImpl implements ProductRepository {
     }
 
     @Override
+    public List<ProductId> findIdsSorted(String sort, Long categoryId, int offset, int limit) {
+        PageRequest page = PageRequest.of(offset / Math.max(1, limit), limit);
+        String key = sort == null ? "newest" : sort.toLowerCase();
+        List<Long> raw = switch (key) {
+            case "priceasc"  -> jpa.findIdsSortedPriceAsc(categoryId, page);
+            case "pricedesc" -> jpa.findIdsSortedPriceDesc(categoryId, page);
+            case "nameasc"   -> jpa.findIdsSortedNameAsc(categoryId, page);
+            case "namedesc"  -> jpa.findIdsSortedNameDesc(categoryId, page);
+            default          -> jpa.findIdsSortedNewest(categoryId, page);
+        };
+        return raw.stream().map(ProductId::of).toList();
+    }
+
+    @Override
     public void delete(Product product) {
         if (product.getId() != null) jpa.deleteById(product.getId().value());
     }

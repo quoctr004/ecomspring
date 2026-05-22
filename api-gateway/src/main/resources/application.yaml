@@ -40,6 +40,14 @@ spring:
               filters:
                 - name: JwtAuthenticationFilter
 
+            # ── User Profile Service — addresses, profile (require JWT) ─
+            - id: user-profile-service
+              uri: lb://user-profile-service
+              predicates:
+                - Path=/api/user-profiles/**
+              filters:
+                - name: JwtAuthenticationFilter
+
             # ── Auth Service — Swagger aggregation ─────────────────────
             - id: auth-service-api-docs
               uri: lb://auth-service
@@ -64,6 +72,20 @@ spring:
               filters:
                 - name: JwtAuthenticationFilter
 
+            # Hero banners — public GET /active, admin CRUD via JWT.
+            - id: catalog-service-banners-public
+              uri: lb://catalog-service
+              predicates:
+                - Path=/api/banners/active
+                - Method=GET
+
+            - id: catalog-service-banners-admin
+              uri: lb://catalog-service
+              predicates:
+                - Path=/api/banners/**
+              filters:
+                - name: JwtAuthenticationFilter
+
             # ── Catalog Service — Swagger aggregation ──────────────────
             - id: catalog-service-api-docs
               uri: lb://catalog-service
@@ -80,6 +102,13 @@ spring:
               filters:
                 - name: JwtAuthenticationFilter
 
+            # Public guest tracking — phone gate enforced by BE; no JWT.
+            - id: order-service-track-public
+              uri: lb://order-service
+              predicates:
+                - Path=/api/orders/track/**
+                - Method=GET
+
             # ── Order Service — writes + reads require JWT ─────────────
             - id: order-service
               uri: lb://order-service
@@ -94,6 +123,14 @@ spring:
               predicates:
                 - Path=/api/payments/sepay/webhook,/api/payments/momo/webhook
                 - Method=POST
+
+            # Payment method catalog — storefront pulls this BEFORE login on
+            # first checkout render, so the route must skip JwtAuthenticationFilter.
+            - id: payment-service-methods
+              uri: lb://payment-service
+              predicates:
+                - Path=/api/payments/methods
+                - Method=GET
 
             - id: payment-service
               uri: lb://payment-service
@@ -186,6 +223,13 @@ spring:
                 - Path=/api/shipments/**
               filters:
                 - name: JwtAuthenticationFilter
+
+            # Shipping fee preview — public so the checkout page can show live
+            # GHTK pricing before the user is authenticated.
+            - id: shipping-fee-public
+              uri: lb://shipping-service
+              predicates:
+                - Path=/api/shipping/**
 
           default-filters:
             # Strip any caller-supplied X-User-* / X-Token-* before routing — the gateway

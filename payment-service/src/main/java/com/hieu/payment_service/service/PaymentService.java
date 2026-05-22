@@ -65,12 +65,18 @@ public class PaymentService {
 
         validateMethod(req.getMethod());
 
+        // Fold storefront aliases (SEPAY/VIETQR/BANK) into the internal enum
+        // BEFORE we persist + branch on method. Without this, an order sent with
+        // method="SEPAY" passes validation (alias-aware) but the QR generation
+        // below misses the "BANK_TRANSFER" branch, so qrCodeUrl is null.
+        String storedMethod = normalizeMethod(req.getMethod());
+
         PaymentJpaEntity entity = new PaymentJpaEntity();
         entity.setOrderId(req.getOrderId());
         entity.setUserId(userId);
         entity.setAmount(req.getAmount());
         entity.setCurrency(req.getCurrency() != null ? req.getCurrency() : "VND");
-        entity.setMethod(req.getMethod().toUpperCase());
+        entity.setMethod(storedMethod);
         entity.setStatus(PENDING);
         if (req.getIdempotencyKey() != null && !req.getIdempotencyKey().isBlank()) {
             entity.setIdempotencyKey(req.getIdempotencyKey());
@@ -81,7 +87,7 @@ public class PaymentService {
 
         PaymentDTO.PaymentDTOBuilder builder = baseBuilder(saved);
 
-        if ("BANK_TRANSFER".equalsIgnoreCase(req.getMethod())) {
+        if ("BANK_TRANSFER".equals(storedMethod)) {
             String qrUrl = sepayQrService.generateQrUrl(req.getOrderId(), req.getAmount());
             saved.setQrCodeUrl(qrUrl);
             builder.qrCodeUrl(qrUrl)
@@ -89,7 +95,7 @@ public class PaymentService {
                    .bankAccount(sepayQrService.getBankAccount())
                    .accountName(sepayQrService.getAccountName())
                    .transferContent(req.getOrderId());
-        } else if ("MOMO".equalsIgnoreCase(req.getMethod())) {
+        } else if ("MOMO".equals(storedMethod)) {
             String payUrl = momoPayUrlService.generatePayUrl(req.getOrderId(), req.getAmount());
             saved.setPayUrl(payUrl);
             builder.payUrl(payUrl);
@@ -244,10 +250,24 @@ public class PaymentService {
     private static void validateMethod(String method) {
         if (method == null) throw new IllegalArgumentException("Payment method must not be null");
         try {
-            PaymentMethod.valueOf(method.toUpperCase());
+            PaymentMethod.valueOf(normalizeMethod(method));
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("Invalid payment method: " + method);
         }
+    }
+
+    /**
+     * Folds storefront-facing names into the internal enum. SEPAY is the user-
+     * visible label for our bank-transfer integration (Vietnamese aggregator
+     * over VietQR) so the storefront sends "SEPAY"; internally we treat it as
+     * BANK_TRANSFER so the existing QR/webhook flow continues to work.
+     */
+    public static String normalizeMethod(String method) {
+        String m = method.trim().toUpperCase();
+        return switch (m) {
+            case "SEPAY", "VIETQR", "BANK", "TRANSFER" -> "BANK_TRANSFER";
+            default -> m;
+        };
     }
 
     private PaymentDTO.PaymentDTOBuilder baseBuilder(PaymentJpaEntity e) {

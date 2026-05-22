@@ -13,6 +13,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 
 @Service
@@ -70,7 +71,11 @@ public class UserProfileService {
 
     @Transactional
     public AddressDTO createAddress(String userId, UpsertAddressRequest req) {
-        UserProfileJpaEntity profile = findProfile(userId);
+        // Lazy-provision the profile: auth-service does not currently publish the
+        // auth.user-registered event, so users registered before the Kafka topic
+        // exists never got a row here. Backfilling on first write keeps the
+        // checkout flow unblocked without requiring a manual migration.
+        UserProfileJpaEntity profile = findOrCreateProfile(userId);
         if (req.isDefault()) {
             addressRepo.clearDefaultForUser(userId);
         }
@@ -108,6 +113,24 @@ public class UserProfileService {
     private UserProfileJpaEntity findProfile(String userId) {
         return profileRepo.findById(userId)
                 .orElseThrow(() -> new UserProfileNotFoundException(userId));
+    }
+
+    /**
+     * Find the profile or insert a placeholder when missing. Used by write paths
+     * (address create / set-default) so the user can complete checkout even when
+     * no Kafka {@code auth.user-registered} event ever arrived. The placeholder
+     * email is overwritten the first time the user PATCHes /me.
+     */
+    private UserProfileJpaEntity findOrCreateProfile(String userId) {
+        return profileRepo.findById(userId).orElseGet(() -> {
+            UserProfileJpaEntity e = new UserProfileJpaEntity();
+            e.setUserId(userId);
+            e.setEmail(userId + "@placeholder.local");
+            OffsetDateTime now = OffsetDateTime.now();
+            e.setCreatedAt(now);
+            e.setUpdatedAt(now);
+            return profileRepo.save(e);
+        });
     }
 
     private AddressJpaEntity findAddress(String userId, Long addressId) {

@@ -15,9 +15,15 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
+import java.time.Instant;
+
 @Service
 @RequiredArgsConstructor
 public class RequestReturnHandler implements CommandHandler<RequestReturnCommand, ReturnRequestDTO> {
+
+    /** Storefront return window — 7 days from delivery, after which no returns. */
+    private static final Duration RETURN_WINDOW = Duration.ofDays(7);
 
     private final OrderRepository orderRepository;
     private final ReturnRequestRepository returnRequestRepository;
@@ -31,6 +37,16 @@ public class RequestReturnHandler implements CommandHandler<RequestReturnCommand
                 .orElseThrow(() -> new OrderNotFoundException(cmd.orderId()));
         if (!order.canBeReturned()) {
             throw new InvalidOrderStateException("Order cannot be returned in state: " + order.getStatus());
+        }
+        // Enforce the 7-day window measured from delivery. Pre-delivery orders
+        // (RETURN_REQUESTED while in transit) fall through with a null
+        // deliveredAt — the state machine already gates those.
+        if (order.getDeliveredAt() != null) {
+            Duration elapsed = Duration.between(order.getDeliveredAt(), Instant.now());
+            if (elapsed.compareTo(RETURN_WINDOW) > 0) {
+                throw new InvalidOrderStateException(
+                        "Đã quá hạn 7 ngày kể từ khi nhận hàng — không thể yêu cầu trả hàng");
+            }
         }
 
         var rr = ReturnRequest.create(

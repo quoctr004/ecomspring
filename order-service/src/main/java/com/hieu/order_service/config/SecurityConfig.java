@@ -33,6 +33,9 @@ public class SecurityConfig {
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(HttpMethod.GET, "/api/orders/{id}/internal").permitAll()
+                // Guest order tracking — phone gate enforced inside the
+                // controller, so no JWT is required to hit this endpoint.
+                .requestMatchers(HttpMethod.GET, "/api/orders/track/**").permitAll()
                 .requestMatchers(
                     "/actuator/**",
                     "/v3/api-docs/**",

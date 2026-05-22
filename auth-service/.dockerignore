@@ -1,0 +1,35 @@
+# Build outputs — let the builder stage produce these fresh inside the image
+target/
+**/target/
+*.jar
+
+# Local env / secrets — NEVER ship into image
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+
+# IDE / OS junk
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Git / docs that don't belong in the image
+.git/
+.gitignore
+.gitattributes
+*.md
+HELP.md
+docs/
+
+# Local Maven wrapper cache (if any) and test reports
+.mvn/wrapper/maven-wrapper.jar
+surefire-reports/
+
+# Logs
+logs/
+*.log

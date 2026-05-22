@@ -53,6 +53,14 @@ public class CatalogDtoMapper {
 
     public ProductSummaryDTO toSummary(Product p) {
         Product.PriceRange range = p.getPriceRange();
+        // Distinct variant images so the storefront card can cycle through them.
+        // Skip nulls + blanks; keep declaration order (no sort) so the first
+        // photo stays the resting frame.
+        java.util.List<String> variantImages = p.getVariants().stream()
+                .map(Variant::getImage)
+                .filter(s -> s != null && !s.isBlank())
+                .distinct()
+                .toList();
         return new ProductSummaryDTO(
             p.getId() != null ? p.getId().value() : null,
             p.getName(),
@@ -65,6 +73,7 @@ public class CatalogDtoMapper {
             range.max(),
             p.getTotalStock(),
             p.hasAvailableVariant(),
+            variantImages,
             p.getCreatedAt()
         );
     }

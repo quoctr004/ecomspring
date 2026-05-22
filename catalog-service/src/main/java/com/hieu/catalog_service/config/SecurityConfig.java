@@ -40,7 +40,8 @@ public class SecurityConfig {
                     "/api/products/**",
                     "/api/categories/**",
                     "/api/attrs/**",
-                    "/api/variants/**").permitAll()
+                    "/api/variants/**",
+                    "/api/banners/active").permitAll()
                 // Ops + docs
                 .requestMatchers(
                     "/actuator/**",

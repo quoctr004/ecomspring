@@ -48,5 +48,17 @@ public interface ProductRepository {
     /** Batch hydration preserving the input order — used after cursor lookup. */
     List<Product> findAllByIdsWithVariants(List<ProductId> ids);
 
+    /**
+     * Sorted, optionally category-filtered offset page. Used when the storefront
+     * picks a non-default sort (price, name) — cursor pagination only works on
+     * the createdAt-DESC key.
+     *
+     * @param sort       one of {@code priceAsc|priceDesc|nameAsc|nameDesc|newest}
+     * @param categoryId narrow to this category or null for all
+     * @param offset     0-based row offset
+     * @param limit      page size
+     */
+    List<ProductId> findIdsSorted(String sort, Long categoryId, int offset, int limit);
+
     void delete(Product product);
 }
