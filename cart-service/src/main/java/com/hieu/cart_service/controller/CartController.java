@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.*;
 
 /** REST controller for cart operations. All endpoints require JWT. */
 @RestController
-@RequestMapping("/api/cart")
+@RequestMapping("/api/v1/cart")
 @RequiredArgsConstructor
 @Tag(name = "Cart", description = "Manage user shopping cart")
 @SecurityRequirement(name = "bearerAuth")

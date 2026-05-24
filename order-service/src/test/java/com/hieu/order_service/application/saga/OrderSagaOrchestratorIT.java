@@ -6,7 +6,6 @@ import com.hieu.order_service.application.handler.order.CreateOrderHandler;
 import com.hieu.order_service.domain.model.order.Order;
 import com.hieu.order_service.domain.model.order.valueobject.OrderStatus;
 import com.hieu.order_service.domain.repository.OrderRepository;
-import com.hieu.order_service.infrastructure.rest.client.InventoryServiceClient;
 import com.hieu.order_service.infrastructure.rest.client.PaymentServiceClient;
 import com.hieu.order_service.infrastructure.rest.client.VoucherServiceClient;
 import org.junit.jupiter.api.DisplayName;
@@ -32,10 +31,10 @@ class OrderSagaOrchestratorIT extends AbstractIntegrationTest {
     @Autowired CreateOrderHandler   createOrderHandler;
     @Autowired OrderRepository      orderRepository;
 
-    // Mock REST clients so we don't need running payment/inventory/voucher services
-    @MockitoBean InventoryServiceClient inventoryServiceClient;
-    @MockitoBean PaymentServiceClient   paymentServiceClient;
-    @MockitoBean VoucherServiceClient   voucherServiceClient;
+    // Mock REST clients so we don't need running payment/voucher services.
+    // Inventory is reached via gRPC in the saga — mocked at that layer where needed.
+    @MockitoBean PaymentServiceClient paymentServiceClient;
+    @MockitoBean VoucherServiceClient voucherServiceClient;
 
     private static final AtomicInteger SEQ = new AtomicInteger(0);
 

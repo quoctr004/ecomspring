@@ -20,7 +20,7 @@ import java.util.List;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/search")
+@RequestMapping("/api/v1/search")
 @RequiredArgsConstructor
 @Validated  // enables @Size on method parameters
 @Tag(name = "Search", description = "Product search & indexing endpoints")

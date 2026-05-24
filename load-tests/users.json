@@ -1,0 +1,22 @@
+[
+  {"email":"loadtest+1@k6.local","password":"LoadTest123!"},
+  {"email":"loadtest+2@k6.local","password":"LoadTest123!"},
+  {"email":"loadtest+3@k6.local","password":"LoadTest123!"},
+  {"email":"loadtest+4@k6.local","password":"LoadTest123!"},
+  {"email":"loadtest+5@k6.local","password":"LoadTest123!"},
+  {"email":"loadtest+6@k6.local","password":"LoadTest123!"},
+  {"email":"loadtest+7@k6.local","password":"LoadTest123!"},
+  {"email":"loadtest+8@k6.local","password":"LoadTest123!"},
+  {"email":"loadtest+9@k6.local","password":"LoadTest123!"},
+  {"email":"loadtest+10@k6.local","password":"LoadTest123!"},
+  {"email":"loadtest+11@k6.local","password":"LoadTest123!"},
+  {"email":"loadtest+12@k6.local","password":"LoadTest123!"},
+  {"email":"loadtest+13@k6.local","password":"LoadTest123!"},
+  {"email":"loadtest+14@k6.local","password":"LoadTest123!"},
+  {"email":"loadtest+15@k6.local","password":"LoadTest123!"},
+  {"email":"loadtest+16@k6.local","password":"LoadTest123!"},
+  {"email":"loadtest+17@k6.local","password":"LoadTest123!"},
+  {"email":"loadtest+18@k6.local","password":"LoadTest123!"},
+  {"email":"loadtest+19@k6.local","password":"LoadTest123!"},
+  {"email":"loadtest+20@k6.local","password":"LoadTest123!"}
+]

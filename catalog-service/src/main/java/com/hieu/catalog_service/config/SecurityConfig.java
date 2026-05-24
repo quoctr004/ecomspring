@@ -37,11 +37,11 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 // Public catalog browsing
                 .requestMatchers(HttpMethod.GET,
-                    "/api/products/**",
-                    "/api/categories/**",
-                    "/api/attrs/**",
-                    "/api/variants/**",
-                    "/api/banners/active").permitAll()
+                    "/api/v1/products/**",
+                    "/api/v1/categories/**",
+                    "/api/v1/attrs/**",
+                    "/api/v1/variants/**",
+                    "/api/v1/banners/active").permitAll()
                 // Ops + docs
                 .requestMatchers(
                     "/actuator/**",

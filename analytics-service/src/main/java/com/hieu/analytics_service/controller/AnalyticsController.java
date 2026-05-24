@@ -20,7 +20,7 @@ import java.util.Map;
 /** Admin endpoints over the ES analytics index. Kibana is the primary UI; these
  *  are the lightweight surfaces used by the Next admin dashboard. */
 @RestController
-@RequestMapping("/api/analytics")
+@RequestMapping("/api/v1/analytics")
 @Tag(name = "Analytics", description = "Admin queries over the analytics-events index")
 @RequiredArgsConstructor
 public class AnalyticsController {

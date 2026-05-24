@@ -1,50 +1,46 @@
 package com.hieu.shipping_service.service;
 
+import com.hieu.common.api.ApiResponse;
+import com.hieu.shipping_service.rest.client.OrderClient;
+import feign.FeignException;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
-import org.springframework.web.reactive.function.client.WebClient;
-import reactor.core.publisher.Mono;
 
-import java.time.Duration;
 import java.util.Map;
 import java.util.Optional;
 
 /**
- * HTTP client for order-service.
- * Used by the Kafka consumer to fetch shipping address after payment.completed.
+ * Domain-shaped facade over {@link OrderClient}.
+ *
+ * <p>Used by the Kafka {@code payment.completed} consumer to fetch the shipping
+ * address. Failures degrade to {@link Optional#empty()} so the consumer can
+ * decide whether to retry the Kafka message or skip the order — taking the
+ * whole consumer thread down because order-service blipped would be worse than
+ * losing one shipment-record creation.
  */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class OrderServiceClient {
 
-    private final WebClient webClient;
-
-    public OrderServiceClient(@Value("${order-service.base-url:http://localhost:8085}") String baseUrl) {
-        this.webClient = WebClient.builder().baseUrl(baseUrl).build();
-    }
+    private final OrderClient orderClient;
 
     /**
-     * Fetches the order response map. Returns empty if order-service is unreachable.
+     * Fetches the order response map. Returns empty if order-service is
+     * unreachable, the response is empty, or the orderId doesn't exist.
      */
-    @SuppressWarnings("unchecked")
     public Optional<Map<String, Object>> fetchOrder(String orderId) {
         try {
-            // H1: .timeout(3s) caps block() on Kafka thread — prevents indefinite thread starvation.
-            // KISS choice over RestTemplate migration; upgrade to async if throughput requires it.
-            var result = webClient.get()
-                    .uri("/api/orders/{id}", orderId)
-                    .retrieve()
-                    .bodyToMono(Map.class)
-                    .timeout(Duration.ofSeconds(3))
-                    .onErrorResume(e -> {
-                        log.warn("order-service unreachable for orderId={}: {}", orderId, e.getMessage());
-                        return Mono.empty();
-                    })
-                    .block();
-            return Optional.ofNullable((Map<String, Object>) result);
-        } catch (Exception e) {
-            log.warn("Failed to fetch order {}: {}", orderId, e.getMessage());
+            ApiResponse<Map<String, Object>> resp = orderClient.getOrder(orderId);
+            if (resp == null || resp.data() == null) {
+                log.debug("order-service returned empty payload for orderId={}", orderId);
+                return Optional.empty();
+            }
+            return Optional.of(resp.data());
+        } catch (FeignException e) {
+            log.warn("order-service call failed for orderId={} (HTTP {}): {}",
+                    orderId, e.status(), e.getMessage());
             return Optional.empty();
         }
     }

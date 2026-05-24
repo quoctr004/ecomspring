@@ -1,27 +1,29 @@
 spring:
-  # Auto-load .env as properties (Spring Boot 3.1+) — file is optional.
   config:
     import: optional:file:.env[.properties]
   application:
     name: voucher-service
-
   datasource:
     driver-class-name: org.postgresql.Driver
     url: ${DB_URL:jdbc:postgresql://localhost:5443/voucherdb}
     username: ${DB_USER:voucheruser}
     password: ${DB_PASSWORD:voucherpass}
-
+    hikari:
+      maximum-pool-size: ${DB_POOL_MAX:50}
+      minimum-idle: ${DB_POOL_MIN:10}
+      connection-timeout: 3000
+      max-lifetime: 1800000
+      idle-timeout: 600000
+      leak-detection-threshold: 60000
   jpa:
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
       ddl-auto: validate
     show-sql: false
-
   flyway:
     enabled: ${FLYWAY_ENABLED:true}
     locations: classpath:db/migration
     baseline-on-migrate: true
-
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:9092}
     consumer:
@@ -32,16 +34,17 @@ spring:
       properties:
         spring.json.use.type.headers: false
         spring.json.value.default.type: java.util.HashMap
-        spring.json.trusted.packages: "com.hieu.*"
+        spring.json.trusted.packages: com.hieu.*
     listener:
       missing-topics-fatal: false
-
+      concurrency: ${KAFKA_CONCURRENCY:3}
+  threads:
+    virtual:
+      enabled: true
 server:
   port: ${SERVER_PORT:8094}
-
 jwt:
   secret: ${JWT_SECRET:change-me-change-me-change-me-change-me-please-32chars}
-
 eureka:
   client:
     service-url:
@@ -50,13 +53,11 @@ eureka:
     fetch-registry: true
   instance:
     prefer-ip-address: true
-
 springdoc:
   api-docs:
     path: /v3/api-docs
   swagger-ui:
     path: /swagger-ui.html
-
 management:
   endpoints:
     web:
@@ -65,7 +66,6 @@ management:
   endpoint:
     health:
       show-details: when-authorized
-
 logging:
   level:
     com.hieu.voucher_service: DEBUG

@@ -76,12 +76,16 @@ public class OrderEventConsumer {
 
     private void send(String userId, String title, String content,
                       String refType, String refId, String email, boolean sendEmail) {
-        // IN_APP always
+        // IN_APP always. .block() is acceptable on the Kafka consumer thread —
+        // it lets the broker ack only after persistence succeeds, preserving
+        // at-least-once semantics. This is NOT a request thread so blocking
+        // does not affect WebFlux event loops.
         notificationService.send(SendNotificationRequest.builder()
                 .userId(userId).type(NotificationType.IN_APP)
                 .title(title).content(content)
                 .referenceType(refType).referenceId(refId)
-                .build());
+                .build())
+                .block();
 
         if (!sendEmail) return;
 
@@ -95,7 +99,8 @@ public class OrderEventConsumer {
                     .userId(userId).type(NotificationType.EMAIL)
                     .channel(resolvedEmail).title(title).content(content)
                     .referenceType(refType).referenceId(refId)
-                    .build());
+                    .build())
+                    .block();
         } else {
             log.debug("No email resolved for userId={}, skipping EMAIL notification", userId);
         }

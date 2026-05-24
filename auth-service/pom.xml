@@ -167,6 +167,14 @@
             <version>${mapstruct.version}</version>
         </dependency>
 
+        <!-- Generates META-INF/spring-configuration-metadata.json from @ConfigurationProperties
+             so IDEs autocomplete properties and flag typos in application.yaml. Compile-only. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-configuration-processor</artifactId>
+            <optional>true</optional>
+        </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>

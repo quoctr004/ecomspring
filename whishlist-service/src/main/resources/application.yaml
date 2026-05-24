@@ -1,3 +1,6 @@
 spring:
   application:
     name: whishlist-service
+  threads:
+    virtual:
+      enabled: true

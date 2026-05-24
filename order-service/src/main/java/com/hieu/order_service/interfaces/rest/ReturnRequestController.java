@@ -18,7 +18,7 @@ import java.math.BigDecimal;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/orders/return-requests")
+@RequestMapping("/api/v1/orders/return-requests")
 @RequiredArgsConstructor
 public class ReturnRequestController {
 

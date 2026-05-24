@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.*;
 /** REST controller for flash sale operations. */
 @Slf4j
 @RestController
-@RequestMapping("/api/flash-sales")
+@RequestMapping("/api/v1/flash-sales")
 @RequiredArgsConstructor
 @Tag(name = "Flash Sales", description = "Flash sale management and participation")
 public class FlashSaleController {

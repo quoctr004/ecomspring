@@ -21,7 +21,7 @@ import java.util.regex.Pattern;
  * callbacks (the old fail-open default auto-confirmed any POST).
  */
 @RestController
-@RequestMapping("/api/payments/sepay")
+@RequestMapping("/api/v1/payments/sepay")
 @Tag(name = "Sepay Webhook", description = "Public Sepay payment webhook")
 public class SepayWebhookController {
 

@@ -2,100 +2,81 @@ package com.hieu.notification_service.service;
 
 import com.hieu.notification_service.dto.NotificationDTO;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.scheduling.annotation.Async;
+import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
-import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Sinks;
 
-import java.io.IOException;
+import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
 
 /**
- * Manages SSE emitter registry and pushes in-app notifications in real time.
- * Emitters are stored per userId; stale/completed emitters are cleaned up automatically.
- * Keep-alive scheduling is owned here so the lifecycle is fully encapsulated
- * (fixes the race where onCompletion was attached after the scheduler was started in the controller).
+ * Reactive in-app push: per-user {@link Sinks.Many} multicast sinks for SSE.
+ *
+ * <p>Migrated from the MVC {@code SseEmitter} version. Reactor's sink-based
+ * model removes the manual emitter lifecycle bookkeeping entirely — when a
+ * subscriber disconnects, the {@link Flux} terminates and Spring WebFlux
+ * cleans up the underlying connection.
+ *
+ * <h2>Why {@code multicast().directBestEffort()}</h2>
+ * <ul>
+ *   <li>One sink per user; multiple browser tabs / devices all subscribe.</li>
+ *   <li>{@code directBestEffort} drops events for slow subscribers instead of
+ *       back-pressuring the publisher — perfect for "live notifications" where
+ *       missing a few events is fine, but blocking the writer is not.</li>
+ * </ul>
+ *
+ * <p>Keep-alive comments are merged into the stream every 15s so reverse
+ * proxies (Nginx, ALB) don't time out the long-lived HTTP connection.
  */
 @Service
 @Slf4j
 public class InAppPushService {
 
-    /** userId → list of active SSE emitters. */
-    private final Map<String, CopyOnWriteArrayList<SseEmitter>> emitters = new ConcurrentHashMap<>();
+    private static final Duration KEEP_ALIVE_INTERVAL = Duration.ofSeconds(15);
 
-    private final ScheduledExecutorService keepAlive =
-            Executors.newScheduledThreadPool(2, Thread.ofVirtual().factory());
+    /** userId → multicast sink of notification events. Created lazily on first subscribe. */
+    private final Map<String, Sinks.Many<NotificationDTO>> sinks = new ConcurrentHashMap<>();
 
     /**
-     * Register a new SSE connection for a user.
-     * Keep-alive scheduling and lifecycle callbacks are wired BEFORE returning the emitter
-     * to avoid a race where {@code onCompletion} fires before {@code future} is assigned.
+     * Open an SSE stream for {@code userId}. The returned {@link Flux} terminates
+     * when the HTTP client disconnects — Spring WebFlux handles the lifecycle.
      */
-    public SseEmitter register(String userId) {
-        // 5-minute timeout; keep-alive comments sent every 15s
-        var emitter = new SseEmitter(300_000L);
-        emitters.computeIfAbsent(userId, k -> new CopyOnWriteArrayList<>()).add(emitter);
+    public Flux<ServerSentEvent<?>> subscribe(String userId) {
+        Sinks.Many<NotificationDTO> sink = sinkFor(userId);
 
-        // Schedule keep-alive BEFORE attaching callbacks so future is never null
-        ScheduledFuture<?> future = keepAlive.scheduleAtFixedRate(
-                () -> sendKeepAlive(userId, emitter), 15, 15, TimeUnit.SECONDS);
+        Flux<ServerSentEvent<?>> events = sink.asFlux()
+                .map(dto -> ServerSentEvent.builder().event("notification").data((Object) dto).build());
 
-        emitter.onCompletion(() -> { future.cancel(true); remove(userId, emitter); });
-        emitter.onTimeout(()   -> { future.cancel(true); remove(userId, emitter); });
-        emitter.onError(e      -> { future.cancel(true); remove(userId, emitter); });
+        // Keep-alive comment merged inline keeps proxies from killing idle connections.
+        Flux<ServerSentEvent<?>> keepAlive = Flux.interval(KEEP_ALIVE_INTERVAL)
+                .map(tick -> ServerSentEvent.builder().comment("keep-alive").build());
 
-        log.debug("SSE registered userId={}", userId);
-        return emitter;
+        return Flux.merge(events, keepAlive)
+                .doOnSubscribe(s -> log.debug("SSE subscribed userId={}", userId))
+                .doFinally(signal -> log.debug("SSE closed userId={} signal={}", userId, signal));
     }
 
-    /** Push a notification event to all active emitters of the target user. */
-    @Async("sseExecutor")
+    /**
+     * Push a notification to every active SSE subscriber of {@code userId}.
+     * Returns immediately — {@code tryEmitNext} is non-blocking. On a missing
+     * sink (no live subscribers) the event is silently dropped, which is the
+     * correct behaviour for a "live feed" channel.
+     */
     public void push(String userId, NotificationDTO dto) {
-        var list = emitters.get(userId);
-        if (list == null || list.isEmpty()) return;
+        Sinks.Many<NotificationDTO> sink = sinks.get(userId);
+        if (sink == null) return;
 
-        list.removeIf(emitter -> {
-            try {
-                emitter.send(SseEmitter.event().name("notification").data(dto));
-                return false;
-            } catch (IOException e) {
-                log.debug("SSE push failed for userId={}, removing emitter", userId);
-                return true;
-            }
-        });
-    }
-
-    private void sendKeepAlive(String userId, SseEmitter emitter) {
-        try {
-            emitter.send(SseEmitter.event().comment("keep-alive"));
-        } catch (IOException e) {
-            remove(userId, emitter);
+        Sinks.EmitResult result = sink.tryEmitNext(dto);
+        if (result.isFailure()) {
+            log.debug("SSE push dropped userId={} reason={}", userId, result);
         }
     }
 
-    private void remove(String userId, SseEmitter emitter) {
-        var list = emitters.get(userId);
-        if (list != null) {
-            list.remove(emitter);
-            if (list.isEmpty()) emitters.remove(userId, list);
-        }
-    }
-
-    @jakarta.annotation.PreDestroy
-    public void shutdown() {
-        keepAlive.shutdown();
-        try {
-            if (!keepAlive.awaitTermination(5, java.util.concurrent.TimeUnit.SECONDS)) {
-                keepAlive.shutdownNow();
-            }
-        } catch (InterruptedException e) {
-            keepAlive.shutdownNow();
-            Thread.currentThread().interrupt();
-        }
+    /** Lazily allocate per-user sinks; multiple subscribers per user are supported. */
+    private Sinks.Many<NotificationDTO> sinkFor(String userId) {
+        return sinks.computeIfAbsent(userId,
+                k -> Sinks.many().multicast().directBestEffort());
     }
 }

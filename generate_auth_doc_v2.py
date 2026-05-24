@@ -352,8 +352,8 @@ CODE(doc, '''auth-service/src/main/java/com/hieu/auth_service/
 │
 ├── interfaces/                                   ← TẦNG GIAO TIẾP
 │   ├── rest/
-│   │   ├── AuthController.java       ← /api/auth/*
-│   │   ├── UserController.java       ← /api/users/*
+│   │   ├── AuthController.java       ← /api/v1/auth/*
+│   │   ├── UserController.java       ← /api/v1/users/*
 │   │   ├── dto/      (LoginRequest, RegisterRequest, ChangePasswordRequest, AuthMeResponse...)
 │   │   ├── filter/   (JwtAuthenticationFilter, RateLimitFilter, JwtAuthenticationEntryPoint)
 │   │   ├── support/  (AuthCookieWriter)
@@ -1801,7 +1801,7 @@ H(doc, 'PHẦN V - TẦNG INTERFACES', level=1)
 H(doc, '25. interfaces/rest - REST Controllers', level=2)
 
 FILE_HEADER(doc, 'AuthController.java', 'interfaces/rest/AuthController.java')
-P(doc, '@RestController @RequestMapping("/api/auth"). Public auth endpoints.', bold=True)
+P(doc, '@RestController @RequestMapping("/api/v1/auth"). Public auth endpoints.', bold=True)
 P(doc, 'Field DI:', bold=True)
 for x in ['CommandHandler<RegisterUserCommand, AuthResponseDTO> registerHandler',
           'CommandHandler<LoginCommand, AuthResponseDTO> loginHandler',
@@ -1817,12 +1817,12 @@ P(doc, 'Endpoints:', bold=True)
 TABLE(doc,
       headers=['Method', 'Path', 'Mô tả', 'Auth?'],
       rows=[
-          ['GET', '/api/auth/me', 'Thông tin principal hiện tại', 'YES'],
-          ['POST', '/api/auth/register', 'Đăng ký user mới', 'NO'],
-          ['POST', '/api/auth/login', 'Đăng nhập', 'NO'],
-          ['POST', '/api/auth/refresh', 'Xoay vòng refresh token', 'NO (token là auth)'],
-          ['POST', '/api/auth/logout', 'Đăng xuất, blacklist token', 'YES'],
-          ['POST', '/api/auth/change-password', 'Đổi mật khẩu', 'YES'],
+          ['GET', '/api/v1/auth/me', 'Thông tin principal hiện tại', 'YES'],
+          ['POST', '/api/v1/auth/register', 'Đăng ký user mới', 'NO'],
+          ['POST', '/api/v1/auth/login', 'Đăng nhập', 'NO'],
+          ['POST', '/api/v1/auth/refresh', 'Xoay vòng refresh token', 'NO (token là auth)'],
+          ['POST', '/api/v1/auth/logout', 'Đăng xuất, blacklist token', 'YES'],
+          ['POST', '/api/v1/auth/change-password', 'Đổi mật khẩu', 'YES'],
       ],
       col_widths=[2, 4.5, 7, 2.5])
 
@@ -1871,19 +1871,19 @@ METHOD(doc, 'private static String readCookie(HttpServletRequest, String name)',
        'Generic cookie reader.', None)
 
 FILE_HEADER(doc, 'UserController.java', 'interfaces/rest/UserController.java')
-P(doc, '@RestController @RequestMapping("/api/users") @SecurityRequirement(name="bearerAuth"). User management.', bold=True)
+P(doc, '@RestController @RequestMapping("/api/v1/users") @SecurityRequirement(name="bearerAuth"). User management.', bold=True)
 TABLE(doc,
       headers=['Method', 'Path', 'Mô tả', 'PreAuthorize'],
       rows=[
-          ['GET', '/api/users/me', 'Profile của user hiện tại', '(authenticated)'],
-          ['PATCH', '/api/users/me/email', 'Đổi email user hiện tại', '(authenticated)'],
-          ['GET', '/api/users/{userId}', 'Lookup user khác', "hasRole('ADMIN')"],
-          ['GET', '/api/users', 'List users với cursor pagination', "hasRole('ADMIN')"],
-          ['GET', '/api/users/{userId}/has-role/{roleName}', 'Check role', '(authenticated)'],
-          ['GET', '/api/users/{userId}/has-permission/{permissionName}', 'Check permission', '(authenticated)'],
-          ['POST', '/api/users/{userId}/roles', 'Gán role', "hasRole('ADMIN')"],
-          ['DELETE', '/api/users/{userId}/roles/{roleName}', 'Bỏ role', "hasRole('ADMIN')"],
-          ['POST', '/api/users/{userId}/status/{transition}', 'Thay đổi status (LOCK/UNLOCK...)', "hasRole('ADMIN')"],
+          ['GET', '/api/v1/users/me', 'Profile của user hiện tại', '(authenticated)'],
+          ['PATCH', '/api/v1/users/me/email', 'Đổi email user hiện tại', '(authenticated)'],
+          ['GET', '/api/v1/users/{userId}', 'Lookup user khác', "hasRole('ADMIN')"],
+          ['GET', '/api/v1/users', 'List users với cursor pagination', "hasRole('ADMIN')"],
+          ['GET', '/api/v1/users/{userId}/has-role/{roleName}', 'Check role', '(authenticated)'],
+          ['GET', '/api/v1/users/{userId}/has-permission/{permissionName}', 'Check permission', '(authenticated)'],
+          ['POST', '/api/v1/users/{userId}/roles', 'Gán role', "hasRole('ADMIN')"],
+          ['DELETE', '/api/v1/users/{userId}/roles/{roleName}', 'Bỏ role', "hasRole('ADMIN')"],
+          ['POST', '/api/v1/users/{userId}/status/{transition}', 'Thay đổi status (LOCK/UNLOCK...)', "hasRole('ADMIN')"],
       ],
       col_widths=[2, 6.5, 5, 2.5])
 
@@ -1937,8 +1937,8 @@ METHOD(doc, 'public void commence(req, res, AuthenticationException)',
 FILE_HEADER(doc, 'RateLimitFilter.java', 'interfaces/rest/filter/RateLimitFilter.java')
 P(doc, '@Component extends OncePerRequestFilter. Bucket4j-based per-IP rate limit.', bold=True)
 P(doc, 'Field:', bold=True)
-for x in ['private static final String LOGIN_PATH = "/api/auth/login"',
-          'private static final String REGISTER_PATH = "/api/auth/register"',
+for x in ['private static final String LOGIN_PATH = "/api/v1/auth/login"',
+          'private static final String REGISTER_PATH = "/api/v1/auth/register"',
           'ConcurrentHashMap<String, Bucket> loginBuckets',
           'ConcurrentHashMap<String, Bucket> registerBuckets',
           'private final ObjectMapper objectMapper']:
@@ -1973,7 +1973,7 @@ P(doc, '@Component - viết HttpOnly cookie cho access + refresh token.', bold=T
 P(doc, 'Field:', bold=True)
 for x in ['public static final String ACCESS_COOKIE = "ACCESS_TOKEN"',
           'public static final String REFRESH_COOKIE = "REFRESH_TOKEN"',
-          'private static final String REFRESH_PATH = "/api/auth"',
+          'private static final String REFRESH_PATH = "/api/v1/auth"',
           '@Value("${auth.cookie.secure:true}") private boolean secure',
           '@Value("${auth.cookie.same-site:Lax}") private String sameSite',
           '@Value("${jwt.refresh-expiration-days:7}") private int refreshExpirationDays']:
@@ -1988,11 +1988,11 @@ TABLE(doc,
       headers=['Cookie', 'Path', 'Max-Age', 'HttpOnly', 'Secure', 'SameSite'],
       rows=[
           ['ACCESS_TOKEN', '/', 'JWT TTL (~15min)', 'true', '${auth.cookie.secure}', '${auth.cookie.same-site}'],
-          ['REFRESH_TOKEN', '/api/auth', '7 days', 'true', '...', '...'],
+          ['REFRESH_TOKEN', '/api/v1/auth', '7 days', 'true', '...', '...'],
       ],
       col_widths=[3.5, 2, 3, 2, 3, 2.5])
 
-NOTE(doc, 'REFRESH path="/api/auth" để cookie chỉ gửi với auth-specific request - giảm exposure trên mọi request thường.')
+NOTE(doc, 'REFRESH path="/api/v1/auth" để cookie chỉ gửi với auth-specific request - giảm exposure trên mọi request thường.')
 
 METHOD(doc, 'public void expire(HttpHeaders headers)',
        'Set Set-Cookie với maxAge=0 cho cả 2 cookie → browser xóa.',
@@ -2164,7 +2164,7 @@ doc.add_page_break()
 H(doc, 'PHẦN VII - LUỒNG NGHIỆP VỤ ĐẦY ĐỦ', level=1)
 
 H(doc, '32. Register flow', level=2)
-CODE(doc, '''┌─ HTTP POST /api/auth/register
+CODE(doc, '''┌─ HTTP POST /api/v1/auth/register
 │  Body: {username, email, password, firstName, lastName}
 │  Headers: Content-Type: application/json
 │
@@ -2230,7 +2230,7 @@ CODE(doc, '''┌─ HTTP POST /api/auth/register
 │
 ├→ AuthCookieWriter.writeTokens(tokens)
 │   ├→ ResponseCookie ACCESS_TOKEN: HttpOnly, Secure, SameSite=Lax, Path=/, Max-Age=15min
-│   ├→ ResponseCookie REFRESH_TOKEN: HttpOnly, Secure, Path=/api/auth, Max-Age=7days
+│   ├→ ResponseCookie REFRESH_TOKEN: HttpOnly, Secure, Path=/api/v1/auth, Max-Age=7days
 │   ├→ Body: AuthResponseDTO(null, null, "Bearer", ttl, userDto)  ← token strings xóa
 │   └→ ResponseEntity 200 OK
 │
@@ -2246,7 +2246,7 @@ CODE(doc, '''┌─ HTTP POST /api/auth/register
 └→ Service khác (notification, billing) consume Kafka → side effects (gửi email welcome, init account...)''')
 
 H(doc, '33. Login flow', level=2)
-CODE(doc, '''┌─ POST /api/auth/login {usernameOrEmail, password}
+CODE(doc, '''┌─ POST /api/v1/auth/login {usernameOrEmail, password}
 ├→ RateLimitFilter (5 req/phút)
 ├→ LoginHandler.handle(LoginCommand) @Transactional
 │   │
@@ -2278,7 +2278,7 @@ CODE(doc, '''┌─ POST /api/auth/login {usernameOrEmail, password}
 └→ Kafka: "auth.user.logged_in.v1" + "auth.token.created.v1"''')
 
 H(doc, '34. Refresh token flow', level=2)
-CODE(doc, '''┌─ POST /api/auth/refresh
+CODE(doc, '''┌─ POST /api/v1/auth/refresh
 │  Cookie: REFRESH_TOKEN=<value>  (or body.refreshToken cho mobile)
 │
 ├→ AuthController.refresh()
@@ -2329,7 +2329,7 @@ KEY INSIGHT về Pessimistic Lock:
             → 401, user reload page''')
 
 H(doc, '35. Logout flow', level=2)
-CODE(doc, '''┌─ POST /api/auth/logout (auth required)
+CODE(doc, '''┌─ POST /api/v1/auth/logout (auth required)
 ├→ JwtAuthenticationFilter authenticate request
 ├→ AuthController.logout(HttpServletRequest)
 │   ├→ accessToken = readAccessToken(req)
@@ -2360,7 +2360,7 @@ CODE(doc, '''┌─ POST /api/auth/logout (auth required)
 └→ Kafka: "auth.token.revoked.v1"''')
 
 H(doc, '36. Change password flow', level=2)
-CODE(doc, '''┌─ POST /api/auth/change-password (auth required)
+CODE(doc, '''┌─ POST /api/v1/auth/change-password (auth required)
 │  Body: {oldPassword, newPassword}
 │
 ├→ AuthController.changePassword(@AuthenticationPrincipal, request, httpReq)
@@ -2401,7 +2401,7 @@ HỆ QUẢ: Mọi JWT cũ của user (kể cả trên các device khác) đều 
 - Refresh token đã revoke → /refresh fail → user phải re-login''')
 
 H(doc, '37. Role assignment flow', level=2)
-CODE(doc, '''┌─ POST /api/users/{userId}/roles (ADMIN only)
+CODE(doc, '''┌─ POST /api/v1/users/{userId}/roles (ADMIN only)
 │  Body: {roleName: "ROLE_MERCHANT"}
 │
 ├→ @PreAuthorize("hasRole('ADMIN')") check

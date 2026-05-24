@@ -7,7 +7,6 @@ import com.hieu.order_service.domain.model.order.Order;
 import com.hieu.order_service.domain.model.order.valueobject.OrderStatus;
 import com.hieu.order_service.domain.model.order.valueobject.ReservationId;
 import com.hieu.order_service.domain.repository.OrderRepository;
-import com.hieu.order_service.infrastructure.rest.client.InventoryServiceClient;
 import com.hieu.order_service.infrastructure.rest.client.PaymentServiceClient;
 import com.hieu.order_service.infrastructure.rest.client.VoucherServiceClient;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -31,9 +30,9 @@ class PaymentEventConsumerIT extends AbstractIntegrationTest {
     @Autowired OrderRepository     orderRepository;
     @Autowired PaymentEventConsumer consumer;
 
-    @MockitoBean InventoryServiceClient inventoryServiceClient;
-    @MockitoBean PaymentServiceClient   paymentServiceClient;
-    @MockitoBean VoucherServiceClient   voucherServiceClient;
+    // Inventory uses gRPC in production code — no REST mock needed here.
+    @MockitoBean PaymentServiceClient paymentServiceClient;
+    @MockitoBean VoucherServiceClient voucherServiceClient;
 
     private static final AtomicInteger SEQ = new AtomicInteger(0);
 

@@ -1,6 +1,6 @@
 package com.hieu.notification_service.domain;
 
-import com.hieu.notification_service.entity.NotificationJpaEntity;
+import com.hieu.notification_service.entity.NotificationDocument;
 import com.hieu.notification_service.entity.NotificationStatus;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -11,7 +11,7 @@ import java.time.Instant;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-@DisplayName("NotificationJpaEntity — pure domain unit tests")
+@DisplayName("NotificationDocument — pure domain unit tests")
 class NotificationEntityTest {
     /**
      * Top-level smoke test — bắt buộc để Sonar rule java:S2187 nhận diện
@@ -26,8 +26,8 @@ class NotificationEntityTest {
     }
 
 
-    private static NotificationJpaEntity buildEntity(String status) {
-        return NotificationJpaEntity.builder()
+    private static NotificationDocument buildEntity(String status) {
+        return NotificationDocument.builder()
                 .userId("user-1")
                 .type("IN_APP")
                 .title("Test Title")
@@ -92,7 +92,7 @@ class NotificationEntityTest {
         void emptyTitle_isStorableButDbConstraintBlocks() {
             // The @NotBlank is on DTO, not entity; entity itself doesn't validate
             // Verify the entity field is accessible
-            var entity = NotificationJpaEntity.builder()
+            var entity = NotificationDocument.builder()
                     .userId("user-1")
                     .type("IN_APP")
                     .title("")
@@ -105,7 +105,7 @@ class NotificationEntityTest {
         @Test
         @DisplayName("null content is accessible (DB enforces nullable=false at persistence time)")
         void nullContent_entityFieldIsNull() {
-            var entity = NotificationJpaEntity.builder()
+            var entity = NotificationDocument.builder()
                     .userId("user-1")
                     .type("IN_APP")
                     .title("title")
@@ -118,7 +118,7 @@ class NotificationEntityTest {
         @Test
         @DisplayName("userId required: null userId entity has null userId")
         void nullUserId_entityFieldIsNull() {
-            var entity = NotificationJpaEntity.builder()
+            var entity = NotificationDocument.builder()
                     .userId(null)
                     .type("EMAIL")
                     .title("title")

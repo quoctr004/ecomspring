@@ -1,0 +1,104 @@
+# syntax=docker/dockerfile:1.7
+#
+# NestJS / Express Dockerfile — senior-grade pattern
+# Mirror cấu trúc của Spring Boot Dockerfile để dễ so sánh:
+#   1. Multi-stage build (builder + deps-prod + runtime)
+#   2. BuildKit cache mount cho pnpm store
+#   3. Layer ordering theo tần suất thay đổi
+#   4. Non-root user (UID 1001)
+#   5. tini cho graceful shutdown
+#   6. Healthcheck qua NestJS Terminus
+#   7. Production-grade env vars
+
+# =========================================================================
+# Stage 1 — BUILDER: install ALL deps + compile TypeScript -> dist/
+# =========================================================================
+FROM node:22-alpine AS builder
+
+# Cài pnpm qua corepack (built-in từ Node 16+) — không cần npm install -g
+RUN corepack enable && corepack prepare pnpm@9 --activate
+
+WORKDIR /workspace
+
+# Copy package manifests TRƯỚC source để tận dụng Docker layer cache.
+# Đổi 1 dòng code → không phải tải lại deps.
+COPY package.json pnpm-lock.yaml ./
+COPY .npmrc ./
+
+# Cache pnpm store qua BuildKit cache mount.
+# Tương đương cache mount /root/.m2 của Maven — store nằm trên host,
+# không bake vào image.
+RUN --mount=type=cache,target=/root/.local/share/pnpm/store,id=pnpm-store \
+    pnpm install --frozen-lockfile
+
+# Copy source + compile TypeScript
+COPY tsconfig*.json nest-cli.json ./
+COPY src ./src
+
+RUN pnpm run build
+# → tạo /workspace/dist/ chứa JavaScript đã compile
+
+
+# =========================================================================
+# Stage 2 — DEPS-PROD: cài CHỈ production dependencies (loại bỏ devDeps)
+# =========================================================================
+# Tách stage này để image runtime không chứa typescript, eslint, jest,
+# @types/*, webpack... (thường chiếm 60% kích thước node_modules).
+FROM node:22-alpine AS deps-prod
+
+RUN corepack enable && corepack prepare pnpm@9 --activate
+
+WORKDIR /workspace
+
+COPY package.json pnpm-lock.yaml ./
+COPY .npmrc ./
+
+RUN --mount=type=cache,target=/root/.local/share/pnpm/store,id=pnpm-store \
+    pnpm install --frozen-lockfile --prod
+# → /workspace/node_modules/ chỉ có production deps
+
+
+# =========================================================================
+# Stage 3 — RUNTIME: minimal Node + non-root user + tini
+# =========================================================================
+FROM node:22-alpine AS runtime
+
+# tini = init process for graceful shutdown (SIGTERM forwarding)
+# wget = used by HEALTHCHECK below
+# dumb-init alternative: tini là chuẩn industry, nhỏ hơn dumb-init
+RUN apk add --no-cache tini wget && \
+    addgroup -S -g 1001 nestjs && \
+    adduser  -S -u 1001 -G nestjs -h /app -s /sbin/nologin nestjs
+
+WORKDIR /app
+
+# Layer ordering: least-change → most-change
+# Mỗi COPY = 1 layer riêng → tận dụng Docker cache.
+COPY --from=deps-prod --chown=nestjs:nestjs /workspace/node_modules ./node_modules
+COPY --from=builder   --chown=nestjs:nestjs /workspace/dist         ./dist
+COPY                  --chown=nestjs:nestjs package.json            ./
+
+# Switch sang non-root TRƯỚC khi chạy app.
+# Nếu app bị RCE, hacker chỉ có quyền user nestjs (UID 1001) — không root.
+USER nestjs:nestjs
+
+# 3000 = HTTP (NestJS default)
+EXPOSE 3000
+
+# Node.js container-aware flags. Tương đương JAVA_TOOL_OPTIONS của JVM.
+ENV NODE_ENV=production \
+    NODE_OPTIONS="--max-old-space-size=768 --enable-source-maps" \
+    TZ=Asia/Ho_Chi_Minh
+#   --max-old-space-size = 75% của container memory limit (1024MB)
+#                          → ngăn V8 dùng quá RAM → ngăn OOM kill
+#   --enable-source-maps = stack trace map về .ts gốc cho dễ debug
+
+# Healthcheck — gọi endpoint /health do NestJS Terminus expose.
+# Container marked unhealthy sau 3 fail liên tiếp → orchestrator restart.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+    CMD wget -q -O - http://127.0.0.1:3000/health | grep -q '"status":"ok"' || exit 1
+
+# tini làm PID 1 → forward SIGTERM tới Node → NestJS graceful shutdown
+# (đóng DB pool, finish in-flight HTTP requests, unregister discovery...)
+# Exec form (JSON array) — signals không qua /bin/sh wrapper.
+ENTRYPOINT ["/sbin/tini", "--", "node", "dist/main.js"]

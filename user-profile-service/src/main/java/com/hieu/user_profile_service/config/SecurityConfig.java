@@ -31,7 +31,7 @@ public class SecurityConfig {
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 // Internal no-auth: order-service saga address lookup
-                .requestMatchers(HttpMethod.GET, "/api/user-profiles/*/addresses/*").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/v1/user-profiles/*/addresses/*").permitAll()
                 // Ops + docs
                 .requestMatchers(
                     "/actuator/**",

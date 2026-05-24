@@ -1,248 +1,197 @@
 server:
   port: 8080
-
+  forward-headers-strategy: native
 spring:
-  # Auto-load .env as properties (Spring Boot 3.1+) — file is optional.
   config:
     import: optional:file:.env[.properties]
   application:
     name: api-gateway
-
   data:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
       password: ${REDIS_PASSWORD:}
-
   cloud:
     gateway:
-      # Spring Cloud Gateway 2025.x splits webflux + webmvc; server.webflux prefix
-      # replaces the old top-level `spring.cloud.gateway.*` for reactive.
       server:
         webflux:
           discovery:
             locator:
               enabled: true
               lower-case-service-id: true
-
           routes:
-            # ── Auth Service — public endpoints ────────────────────────
-            - id: auth-service-public
-              uri: lb://auth-service
-              predicates:
-                - Path=/api/auth/login,/api/auth/register,/api/auth/refresh,/api/auth/google
-
-            # ── Auth Service — protected endpoints (require JWT) ───────
-            - id: auth-service-protected
-              uri: lb://auth-service
-              predicates:
-                - Path=/api/auth/me,/api/auth/logout,/api/auth/change-password,/api/users/**
-              filters:
-                - name: JwtAuthenticationFilter
-
-            # ── User Profile Service — addresses, profile (require JWT) ─
-            - id: user-profile-service
-              uri: lb://user-profile-service
-              predicates:
-                - Path=/api/user-profiles/**
-              filters:
-                - name: JwtAuthenticationFilter
-
-            # ── Auth Service — Swagger aggregation ─────────────────────
-            - id: auth-service-api-docs
-              uri: lb://auth-service
-              predicates:
-                - Path=/v3/api-docs/auth-service
-              filters:
-                - RewritePath=/v3/api-docs/auth-service, /v3/api-docs
-
-            # ── Catalog Service — public reads (GET) ───────────────────
-            - id: catalog-service-public-reads
-              uri: lb://catalog-service
-              predicates:
-                - Path=/api/products/**,/api/categories/**,/api/attrs/**,/api/variants/**
-                - Method=GET
-
-            # ── Catalog Service — writes (JWT required) ────────────────
-            - id: catalog-service-writes
-              uri: lb://catalog-service
-              predicates:
-                - Path=/api/products/**,/api/categories/**,/api/attrs/**,/api/variants/**
-                - Method=POST,PUT,PATCH,DELETE
-              filters:
-                - name: JwtAuthenticationFilter
-
-            # Hero banners — public GET /active, admin CRUD via JWT.
-            - id: catalog-service-banners-public
-              uri: lb://catalog-service
-              predicates:
-                - Path=/api/banners/active
-                - Method=GET
-
-            - id: catalog-service-banners-admin
-              uri: lb://catalog-service
-              predicates:
-                - Path=/api/banners/**
-              filters:
-                - name: JwtAuthenticationFilter
-
-            # ── Catalog Service — Swagger aggregation ──────────────────
-            - id: catalog-service-api-docs
-              uri: lb://catalog-service
-              predicates:
-                - Path=/v3/api-docs/catalog-service
-              filters:
-                - RewritePath=/v3/api-docs/catalog-service, /v3/api-docs
-
-            # ── Cart Service — all endpoints require JWT ───────────────
-            - id: cart-service
-              uri: lb://cart-service
-              predicates:
-                - Path=/api/cart/**
-              filters:
-                - name: JwtAuthenticationFilter
-
-            # Public guest tracking — phone gate enforced by BE; no JWT.
-            - id: order-service-track-public
-              uri: lb://order-service
-              predicates:
-                - Path=/api/orders/track/**
-                - Method=GET
-
-            # ── Order Service — writes + reads require JWT ─────────────
-            - id: order-service
-              uri: lb://order-service
-              predicates:
-                - Path=/api/orders/**
-              filters:
-                - name: JwtAuthenticationFilter
-
-            # ── Payment Service — webhook public, rest JWT ─────────────
-            - id: payment-service-webhook
-              uri: lb://payment-service
-              predicates:
-                - Path=/api/payments/sepay/webhook,/api/payments/momo/webhook
-                - Method=POST
-
-            # Payment method catalog — storefront pulls this BEFORE login on
-            # first checkout render, so the route must skip JwtAuthenticationFilter.
-            - id: payment-service-methods
-              uri: lb://payment-service
-              predicates:
-                - Path=/api/payments/methods
-                - Method=GET
-
-            - id: payment-service
-              uri: lb://payment-service
-              predicates:
-                - Path=/api/payments/**
-              filters:
-                - name: JwtAuthenticationFilter
-
-            # ── Flash-Sale Service — public browsing, participate+admin JWT ──
-            - id: flash-sale-service-public
-              uri: lb://flash-sale-service
-              predicates:
-                - Path=/api/flash-sales/active,/api/flash-sales/{id},/api/flash-sales/{id}/availability
-                - Method=GET
-
-            - id: flash-sale-service
-              uri: lb://flash-sale-service
-              predicates:
-                - Path=/api/flash-sales/**
-              filters:
-                - name: JwtAuthenticationFilter
-
-            # ── Search Service — public search + suggest, admin index ─────────
-            - id: search-service-public
-              uri: lb://search-service
-              predicates:
-                - Path=/api/search,/api/search/suggest
-                - Method=GET,POST
-
-            - id: search-service-admin
-              uri: lb://search-service
-              predicates:
-                - Path=/api/search/index/**
-              filters:
-                - name: JwtAuthenticationFilter
-
-            # ── Voucher Service — public reads (active list + by-code) + validate/release; admin writes ──
-            - id: voucher-service-public
-              uri: lb://voucher-service
-              predicates:
-                - Path=/api/vouchers/active,/api/vouchers/code/**
-
-            - id: voucher-service-protected
-              uri: lb://voucher-service
-              predicates:
-                - Path=/api/vouchers/**
-              filters:
-                - name: JwtAuthenticationFilter
-
-            # ── Analytics Service — admin-only summary endpoint (Kibana is the main UI) ──
-            - id: analytics-service
-              uri: lb://analytics-service
-              predicates:
-                - Path=/api/analytics/**
-              filters:
-                - name: JwtAuthenticationFilter
-
-            # ── Notification Service — SSE stream public-token, rest JWT ─────
-            - id: notification-service
-              uri: lb://notification-service
-              predicates:
-                - Path=/api/notifications/**
-              filters:
-                - name: JwtAuthenticationFilter
-
-            # ── Inventory Service — reserve/confirm/release internal, rest JWT ─
-            - id: inventory-service-internal
-              uri: lb://inventory-service
-              predicates:
-                - Path=/api/inventory/reserve,/api/inventory/confirm,/api/inventory/release
-                - Method=POST
-
-            - id: inventory-service
-              uri: lb://inventory-service
-              predicates:
-                - Path=/api/inventory/**
-              filters:
-                - name: JwtAuthenticationFilter
-
-            # ── Shipping Service — tracking public, rest JWT ───────────
-            - id: shipping-service-tracking
-              uri: lb://shipping-service
-              predicates:
-                - Path=/api/shipments/tracking/**
-                - Method=GET
-
-            - id: shipping-service
-              uri: lb://shipping-service
-              predicates:
-                - Path=/api/shipments/**
-              filters:
-                - name: JwtAuthenticationFilter
-
-            # Shipping fee preview — public so the checkout page can show live
-            # GHTK pricing before the user is authenticated.
-            - id: shipping-fee-public
-              uri: lb://shipping-service
-              predicates:
-                - Path=/api/shipping/**
-
+          - id: auth-service-public
+            uri: lb://auth-service
+            predicates:
+            - Path=/api/v1/auth/login,/api/v1/auth/register,/api/v1/auth/refresh,/api/v1/auth/google
+          - id: auth-service-protected
+            uri: lb://auth-service
+            predicates:
+            - Path=/api/v1/auth/me,/api/v1/auth/logout,/api/v1/auth/change-password,/api/v1/users/**
+            filters:
+            - name: JwtAuthenticationFilter
+          - id: user-profile-service
+            uri: lb://user-profile-service
+            predicates:
+            - Path=/api/v1/user-profiles/**
+            filters:
+            - name: JwtAuthenticationFilter
+          - id: auth-service-api-docs
+            uri: lb://auth-service
+            predicates:
+            - Path=/v3/api-docs/auth-service
+            filters:
+            - RewritePath=/v3/api-docs/auth-service, /v3/api-docs
+          - id: catalog-service-public-reads
+            uri: lb://catalog-service
+            predicates:
+            - Path=/api/v1/products/**,/api/v1/categories/**,/api/v1/attrs/**,/api/v1/variants/**
+            - Method=GET
+          - id: catalog-service-writes
+            uri: lb://catalog-service
+            predicates:
+            - Path=/api/v1/products/**,/api/v1/categories/**,/api/v1/attrs/**,/api/v1/variants/**
+            - Method=POST,PUT,PATCH,DELETE
+            filters:
+            - name: JwtAuthenticationFilter
+          - id: catalog-service-banners-public
+            uri: lb://catalog-service
+            predicates:
+            - Path=/api/v1/banners/active
+            - Method=GET
+          - id: catalog-service-banners-admin
+            uri: lb://catalog-service
+            predicates:
+            - Path=/api/v1/banners/**
+            filters:
+            - name: JwtAuthenticationFilter
+          - id: catalog-service-api-docs
+            uri: lb://catalog-service
+            predicates:
+            - Path=/v3/api-docs/catalog-service
+            filters:
+            - RewritePath=/v3/api-docs/catalog-service, /v3/api-docs
+          - id: cart-service
+            uri: lb://cart-service
+            predicates:
+            - Path=/api/v1/cart/**
+            filters:
+            - name: JwtAuthenticationFilter
+          - id: order-service-track-public
+            uri: lb://order-service
+            predicates:
+            - Path=/api/v1/orders/track/**
+            - Method=GET
+          - id: order-service
+            uri: lb://order-service
+            predicates:
+            - Path=/api/v1/orders/**
+            filters:
+            - name: JwtAuthenticationFilter
+          - id: payment-service-webhook
+            uri: lb://payment-service
+            predicates:
+            - Path=/api/v1/payments/sepay/webhook,/api/v1/payments/momo/webhook
+            - Method=POST
+          - id: payment-service-methods
+            uri: lb://payment-service
+            predicates:
+            - Path=/api/v1/payments/methods
+            - Method=GET
+          - id: payment-service
+            uri: lb://payment-service
+            predicates:
+            - Path=/api/v1/payments/**
+            filters:
+            - name: JwtAuthenticationFilter
+          - id: flash-sale-service-public
+            uri: lb://flash-sale-service
+            predicates:
+            - Path=/api/v1/flash-sales/active,/api/v1/flash-sales/{id},/api/v1/flash-sales/{id}/availability
+            - Method=GET
+          - id: flash-sale-service
+            uri: lb://flash-sale-service
+            predicates:
+            - Path=/api/v1/flash-sales/**
+            filters:
+            - name: JwtAuthenticationFilter
+          - id: search-service-public
+            uri: lb://search-service
+            predicates:
+            - Path=/api/v1/search,/api/v1/search/suggest
+            - Method=GET,POST
+          - id: search-service-admin
+            uri: lb://search-service
+            predicates:
+            - Path=/api/v1/search/index/**
+            filters:
+            - name: JwtAuthenticationFilter
+          - id: voucher-service-public
+            uri: lb://voucher-service
+            predicates:
+            - Path=/api/v1/vouchers/active,/api/v1/vouchers/code/**
+          - id: voucher-service-protected
+            uri: lb://voucher-service
+            predicates:
+            - Path=/api/v1/vouchers/**
+            filters:
+            - name: JwtAuthenticationFilter
+          - id: analytics-service
+            uri: lb://analytics-service
+            predicates:
+            - Path=/api/v1/analytics/**
+            filters:
+            - name: JwtAuthenticationFilter
+          - id: notification-service
+            uri: lb://notification-service
+            predicates:
+            - Path=/api/v1/notifications/**
+            filters:
+            - name: JwtAuthenticationFilter
+          - id: inventory-service-internal
+            uri: lb://inventory-service
+            predicates:
+            - Path=/api/v1/inventory/reserve,/api/v1/inventory/confirm,/api/v1/inventory/release
+            - Method=POST
+          - id: inventory-service
+            uri: lb://inventory-service
+            predicates:
+            - Path=/api/v1/inventory/**
+            filters:
+            - name: JwtAuthenticationFilter
+          - id: shipping-service-tracking
+            uri: lb://shipping-service
+            predicates:
+            - Path=/api/v1/shipments/tracking/**
+            - Method=GET
+          - id: shipping-service
+            uri: lb://shipping-service
+            predicates:
+            - Path=/api/v1/shipments/**
+            filters:
+            - name: JwtAuthenticationFilter
+          - id: shipping-fee-public
+            uri: lb://shipping-service
+            predicates:
+            - Path=/api/v1/shipping/**
           default-filters:
-            # Strip any caller-supplied X-User-* / X-Token-* before routing — the gateway
-            # owns these headers and injects them after JWT verification. Without this,
-            # routes that skip JwtAuthenticationFilter (auth-public, catalog-public-reads,
-            # inventory-service-internal, shipping-tracking) would trust whatever the
-            # client put there, letting any unauthenticated request impersonate any user.
-            - RemoveRequestHeader=X-User-Id
-            - RemoveRequestHeader=X-User-Name
-            - RemoveRequestHeader=X-Token-Id
-            - RemoveRequestHeader=X-Token-Version
-            - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin
-
+          - RemoveRequestHeader=X-User-Id
+          - RemoveRequestHeader=X-User-Name
+          - RemoveRequestHeader=X-Token-Id
+          - RemoveRequestHeader=X-Token-Version
+          - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin
+          # Global per-user rate limit (Redis-backed token bucket).
+          # Authenticated calls keyed by X-User-Id; anonymous calls keyed by IP
+          # (via userKeyResolver fallback in RateLimiterConfig.java).
+          - name: RequestRateLimiter
+            args:
+              key-resolver: '#{@userKeyResolver}'
+              redis-rate-limiter.replenishRate: ${GW_RATE_REPLENISH:50}    # 50 req/s sustained
+              redis-rate-limiter.burstCapacity: ${GW_RATE_BURST:100}        # 100 req burst
+              redis-rate-limiter.requestedTokens: 1
+  threads:
+    virtual:
+      enabled: true
 eureka:
   client:
     service-url:
@@ -251,12 +200,8 @@ eureka:
     fetch-registry: true
   instance:
     prefer-ip-address: true
-
-# ── JWT (shared secret with auth-service for signature verification) ──
 jwt:
   secret: ${JWT_SECRET:change-me-change-me-change-me-change-me-please-32chars}
-
-# ── Resilience4j circuit breaker ──
 resilience4j:
   circuitbreaker:
     instances:
@@ -272,7 +217,6 @@ resilience4j:
     instances:
       defaultCircuitBreaker:
         timeoutDuration: 3s
-
 management:
   endpoints:
     web:
@@ -283,20 +227,17 @@ management:
       enabled: true
     health:
       show-details: when-authorized
-
-# ── OpenAPI aggregation ──
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
     urls:
-      - name: Auth Service
-        url: /v3/api-docs/auth-service
+    - name: Auth Service
+      url: /v3/api-docs/auth-service
   api-docs:
     enabled: true
-
 logging:
   level:
     org.springframework.cloud.gateway: INFO
     com.hieu.api_gateway: DEBUG
   pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{30} - %msg%n"
+    console: '%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{30} - %msg%n'

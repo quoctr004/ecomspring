@@ -1,0 +1,133 @@
+# Service health + availability alerts.
+# Routed via AlertManager → Slack/email (see alertmanager.yml).
+#
+# severity labels:
+#   critical → page oncall immediately (SMS/PagerDuty)
+#   warning  → Slack channel, no page
+
+groups:
+  - name: service-availability
+    interval: 30s
+    rules:
+      - alert: ServiceDown
+        expr: up == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.job }} is DOWN"
+          description: "Prometheus scrape failed for {{ $labels.job }} for >2 minutes. Check actuator/health and pod logs."
+
+      - alert: ServiceFlapping
+        expr: changes(up[10m]) > 4
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.job }} is flapping"
+          description: "{{ $labels.job }} went up/down >4 times in 10 minutes — likely OOM-kill or readiness misconfig."
+
+  - name: http-latency
+    interval: 30s
+    rules:
+      # p95 latency above 1s sustained for 5 min on any service endpoint.
+      - alert: HighHttpLatencyP95
+        expr: |
+          histogram_quantile(0.95,
+            sum by (job, uri, le) (rate(http_server_requests_seconds_bucket[5m]))
+          ) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.job }} p95 latency >1s on {{ $labels.uri }}"
+          description: "p95 = {{ $value | humanizeDuration }} on {{ $labels.uri }}. Check downstream calls + DB."
+
+      - alert: HighErrorRate
+        expr: |
+          sum by (job) (rate(http_server_requests_seconds_count{status=~"5.."}[5m]))
+            /
+          sum by (job) (rate(http_server_requests_seconds_count[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.job }} 5xx rate >5%"
+          description: "{{ $value | humanizePercentage }} of requests returning 5xx. Likely downstream failure or bug."
+
+  - name: jvm-resources
+    interval: 30s
+    rules:
+      - alert: HighJvmHeapUsage
+        expr: |
+          (jvm_memory_used_bytes{area="heap"} / jvm_memory_max_bytes{area="heap"}) > 0.85
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.job }} heap usage >85%"
+          description: "Heap {{ $value | humanizePercentage }}. Risk of OOM — investigate memory leak or raise MaxRAMPercentage."
+
+      - alert: HighCpuUsage
+        expr: process_cpu_usage > 0.8
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.job }} CPU >80%"
+          description: "Process CPU at {{ $value | humanizePercentage }} sustained — investigate hot loop or undersized instance."
+
+      - alert: TooManyThreads
+        expr: jvm_threads_live_threads > 500
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.job }} thread count >500"
+          description: "Live threads = {{ $value }}. Possible thread leak or virtual-thread misconfig."
+
+  - name: database-pool
+    interval: 30s
+    rules:
+      - alert: HikariPoolExhausted
+        expr: hikaricp_connections_pending > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.job }} HikariCP has pending connections"
+          description: "{{ $value }} threads waiting for a DB connection — pool exhausted or slow query."
+
+      - alert: HikariPoolNearLimit
+        expr: |
+          (hikaricp_connections_active / hikaricp_connections_max) > 0.9
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.job }} HikariCP >90% utilized"
+          description: "Active/max = {{ $value | humanizePercentage }}. Raise pool size or optimize queries."
+
+  - name: kafka
+    interval: 30s
+    rules:
+      - alert: KafkaConsumerLag
+        expr: kafka_consumer_fetch_manager_records_lag > 10000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.job }} Kafka lag >10k on {{ $labels.topic }}"
+          description: "Consumer lag = {{ $value }} on topic {{ $labels.topic }}. Scale consumers or check processing speed."
+
+  - name: circuit-breaker
+    interval: 30s
+    rules:
+      - alert: CircuitBreakerOpen
+        expr: resilience4j_circuitbreaker_state{state="open"} == 1
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Circuit breaker {{ $labels.name }} OPEN in {{ $labels.job }}"
+          description: "Downstream {{ $labels.name }} failing — calls being short-circuited. Investigate dependency."

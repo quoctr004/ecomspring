@@ -35,12 +35,14 @@ public class PaymentEventConsumer {
         var paymentId = str(payload, "paymentId");
         var email = str(payload, "email");
 
-        // IN_APP
+        // IN_APP — .block() acceptable on Kafka consumer thread (not a request thread);
+        // lets the broker ack only after persistence succeeds (at-least-once).
         notificationService.send(SendNotificationRequest.builder()
                 .userId(userId).type(NotificationType.IN_APP)
                 .title(title).content(content)
                 .referenceType(REF_TYPE_PAYMENT).referenceId(paymentId)
-                .build());
+                .build())
+                .block();
 
         // EMAIL: payload first, gRPC fallback
         String resolvedEmail = !email.isBlank()
@@ -51,7 +53,8 @@ public class PaymentEventConsumer {
                     .userId(userId).type(NotificationType.EMAIL)
                     .channel(resolvedEmail).title(title).content(content)
                     .referenceType(REF_TYPE_PAYMENT).referenceId(paymentId)
-                    .build());
+                    .build())
+                    .block();
         } else {
             log.debug("No email resolved for userId={}, skipping EMAIL notification", userId);
         }
@@ -68,7 +71,8 @@ public class PaymentEventConsumer {
                 .userId(userId).type(NotificationType.IN_APP)
                 .title(title).content(content)
                 .referenceType(REF_TYPE_PAYMENT).referenceId(paymentId)
-                .build());
+                .build())
+                .block();
     }
 
     private static String str(Map<String, Object> m, String key) {

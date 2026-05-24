@@ -218,6 +218,33 @@ services:
       timeout: 5s
       retries: 10
 
+  # MongoDB for notification-service (WebFlux + Reactive Mongo).
+  # Single-node, no auth — dev only; production deploys with replicaSet + auth.
+  mongo:
+    image: mongo:7
+    container_name: hieu-mongo
+    ports: ["27017:27017"]
+    volumes:
+      - mongodata:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.runCommand({ ping: 1 }).ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # Zipkin — distributed tracing UI + collector. Services push spans via
+  # Micrometer Tracing + Brave bridge to http://zipkin:9411/api/v2/spans.
+  # In-memory storage (dev only); production uses Elasticsearch or Cassandra.
+  zipkin:
+    image: openzipkin/zipkin:3
+    container_name: hieu-zipkin
+    ports: ["9411:9411"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://localhost:9411/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
   # Apache Kafka 3.8 in KRaft mode — no Zookeeper required.
   # Official apache/kafka image runs controller + broker in a single process.
   kafka:
@@ -282,6 +309,76 @@ services:
       timeout: 10s
       retries: 15
 
+  # Prometheus — scrapes /actuator/prometheus from every Spring Boot service.
+  # Scrape targets live in ./prometheus/prometheus.yml; alert rules in ./prometheus/alerts/.
+  # Services run on the host (host.docker.internal) until full-container deploy.
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    container_name: hieu-prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=15d'
+      - '--web.enable-lifecycle'
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alerts:/etc/prometheus/alerts:ro
+      - promdata:/prometheus
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://localhost:9090/-/healthy || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  # Grafana — dashboards for Spring Boot (HTTP/JVM), HikariCP, Kafka, gateway latency.
+  # Default login admin/admin (change in prod via env). Datasources + dashboards are
+  # auto-provisioned from ./grafana/provisioning/ on startup.
+  grafana:
+    image: grafana/grafana:11.3.0
+    container_name: hieu-grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_INSTALL_PLUGINS=
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafanadata:/var/lib/grafana
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://localhost:3000/api/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  # AlertManager — receives alerts from Prometheus, deduplicates + routes to
+  # Slack/email/PagerDuty. Config in ./prometheus/alertmanager.yml.
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: hieu-alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./prometheus/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanagerdata:/alertmanager
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://localhost:9093/-/healthy || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
   # Filebeat — scrape Docker container stdout/stderr → ES index logs-YYYY.MM.dd.
   filebeat:
     image: docker.elastic.co/beats/filebeat:9.0.0
@@ -311,6 +408,10 @@ volumes:
   pgdata-userprofile:
   pgdata-voucher:
   redisdata:
+  mongodata:
   kafkadata:
   esdata:
   filebeatdata:
+  promdata:
+  grafanadata:
+  alertmanagerdata:

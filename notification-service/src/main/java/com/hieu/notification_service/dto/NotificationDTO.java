@@ -4,10 +4,16 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 
 import java.time.Instant;
 
-/** Immutable read model for notification data. */
+/**
+ * Immutable read model for notification data.
+ *
+ * <p>{@code id} is a {@link String} (MongoDB ObjectId hex). Pre-MongoDB
+ * persistence used {@code Long} primary keys — frontend / other services
+ * treat the value as opaque, so the swap is contained here.
+ */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record NotificationDTO(
-        Long id,
+        String id,
         String userId,
         String type,
         String channel,

@@ -1,16 +1,20 @@
 spring:
-  # Auto-load .env as properties (Spring Boot 3.1+) — file is optional.
   config:
     import: optional:file:.env[.properties]
   application:
     name: shipping-service
-
   datasource:
     driver-class-name: ${DB_DRIVER:org.postgresql.Driver}
     url: ${DB_URL:jdbc:postgresql://localhost:5438/shippingdb}
     username: ${DB_USER:shippinguser}
     password: ${DB_PASSWORD:shippingpass}
-
+    hikari:
+      maximum-pool-size: ${DB_POOL_MAX:50}
+      minimum-idle: ${DB_POOL_MIN:10}
+      connection-timeout: 3000
+      max-lifetime: 1800000
+      idle-timeout: 600000
+      leak-detection-threshold: 60000
   jpa:
     database-platform: ${JPA_DIALECT:org.hibernate.dialect.PostgreSQLDialect}
     hibernate:
@@ -19,12 +23,10 @@ spring:
     properties:
       hibernate:
         format_sql: true
-
   flyway:
     enabled: ${FLYWAY_ENABLED:true}
     locations: classpath:db/migration
     baseline-on-migrate: true
-
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:9092}
     producer:
@@ -41,16 +43,17 @@ spring:
       properties:
         spring.json.use.type.headers: false
         spring.json.value.default.type: java.util.HashMap
-        spring.json.trusted.packages: "com.hieu.*"
+        spring.json.trusted.packages: com.hieu.*
     listener:
       missing-topics-fatal: false
-
+      concurrency: ${KAFKA_CONCURRENCY:3}
+  threads:
+    virtual:
+      enabled: true
 server:
   port: ${SERVER_PORT:8087}
-
 jwt:
   secret: ${JWT_SECRET:change-me-change-me-change-me-change-me-please-32chars}
-
 eureka:
   client:
     service-url:
@@ -59,7 +62,6 @@ eureka:
     fetch-registry: true
   instance:
     prefer-ip-address: true
-
 springdoc:
   api-docs:
     path: /v3/api-docs
@@ -67,7 +69,6 @@ springdoc:
     path: /swagger-ui.html
     operations-sorter: method
     tags-sorter: alpha
-
 management:
   endpoints:
     web:
@@ -76,16 +77,60 @@ management:
   endpoint:
     health:
       show-details: when-authorized
-
 order-service:
   base-url: ${ORDER_SERVICE_URL:http://localhost:8085}
-
 ghtk:
   base-url: ${GHTK_BASE_URL:https://services.giaohangtietkiem.vn}
   token: ${GHTK_TOKEN:}
   transport: ${GHTK_TRANSPORT:road}
   pick:
-    province: ${GHTK_PICK_PROVINCE:Hà Nội}
-    district: ${GHTK_PICK_DISTRICT:Cầu Giấy}
-    ward:     ${GHTK_PICK_WARD:Dịch Vọng Hậu}
-    address:  ${GHTK_PICK_ADDRESS:Số 1 Trần Thái Tông}
+    province: "${GHTK_PICK_PROVINCE:H\xE0 N\u1ED9i}"
+    district: "${GHTK_PICK_DISTRICT:C\u1EA7u Gi\u1EA5y}"
+    ward: "${GHTK_PICK_WARD:D\u1ECBch V\u1ECDng H\u1EADu}"
+    address: "${GHTK_PICK_ADDRESS:S\u1ED1 1 Tr\u1EA7n Th\xE1i T\xF4ng}"
+spring.cloud.openfeign.client.config:
+  default:
+    connectTimeout: ${FEIGN_CONNECT_TIMEOUT:3000}
+    readTimeout: ${FEIGN_READ_TIMEOUT:4000}
+    loggerLevel: ${FEIGN_LOG_LEVEL:BASIC}
+  ghtk:
+    connectTimeout: ${FEIGN_GHTK_CONNECT_TIMEOUT:4000}
+    readTimeout: ${FEIGN_GHTK_READ_TIMEOUT:6000}
+
+# ── Feign + Resilience4j circuit breaker ──
+# GHTK (3rd party) gets a more lenient breaker because it occasionally takes
+# ~3s under load; local fallback still kicks in via service-level catch.
+spring.cloud.openfeign.circuitbreaker:
+  enabled: true
+  group:
+    enabled: true
+
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        slidingWindowSize: 20
+        minimumNumberOfCalls: 10
+        failureRateThreshold: 50
+        slowCallDurationThreshold: 4s
+        slowCallRateThreshold: 70
+        waitDurationInOpenState: 10s
+        permittedNumberOfCallsInHalfOpenState: 3
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+        registerHealthIndicator: true
+    instances:
+      ghtk:
+        baseConfig: default
+        slowCallDurationThreshold: 6s   # GHTK is slow under load
+        failureRateThreshold: 60
+      OrderClient:
+        baseConfig: default
+  timelimiter:
+    configs:
+      default:
+        timeoutDuration: 5s
+        cancelRunningFuture: true
+    instances:
+      ghtk:
+        baseConfig: default
+        timeoutDuration: 7s

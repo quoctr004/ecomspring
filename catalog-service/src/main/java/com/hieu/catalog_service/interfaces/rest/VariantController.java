@@ -43,7 +43,7 @@ public class VariantController {
     private final QueryHandler<CheckStockQuery, VariantDTO> checkStock;
 
     @Operation(summary = "Add a variant to a product (admin)")
-    @PostMapping("/api/products/{productId}/variants")
+    @PostMapping("/api/v1/products/{productId}/variants")
     @PreAuthorize(WRITE)
     public ResponseEntity<VariantDTO> add(@PathVariable Long productId,
                                             @Valid @RequestBody AddVariantRequest req,
@@ -56,7 +56,7 @@ public class VariantController {
     }
 
     @Operation(summary = "Update variant pricing (admin)")
-    @PatchMapping("/api/products/{productId}/variants/{variantId}/pricing")
+    @PatchMapping("/api/v1/products/{productId}/variants/{variantId}/pricing")
     @PreAuthorize(WRITE)
     public ResponseEntity<VariantDTO> updatePricing(@PathVariable Long productId,
                                                       @PathVariable Long variantId,
@@ -67,7 +67,7 @@ public class VariantController {
     }
 
     @Operation(summary = "Set variant stock (admin)")
-    @PutMapping("/api/products/{productId}/variants/{variantId}/stock")
+    @PutMapping("/api/v1/products/{productId}/variants/{variantId}/stock")
     @PreAuthorize(WRITE)
     public ResponseEntity<VariantDTO> updateStock(@PathVariable Long productId,
                                                     @PathVariable Long variantId,
@@ -78,7 +78,7 @@ public class VariantController {
     }
 
     @Operation(summary = "Adjust variant stock by delta (admin)")
-    @PostMapping("/api/products/{productId}/variants/{variantId}/stock/adjust")
+    @PostMapping("/api/v1/products/{productId}/variants/{variantId}/stock/adjust")
     @PreAuthorize(WRITE)
     public ResponseEntity<VariantDTO> adjustStock(@PathVariable Long productId,
                                                     @PathVariable Long variantId,
@@ -89,7 +89,7 @@ public class VariantController {
     }
 
     @Operation(summary = "Remove variant (admin)")
-    @DeleteMapping("/api/products/{productId}/variants/{variantId}")
+    @DeleteMapping("/api/v1/products/{productId}/variants/{variantId}")
     @PreAuthorize(WRITE)
     public ResponseEntity<Void> remove(@PathVariable Long productId,
                                          @PathVariable Long variantId,
@@ -99,13 +99,13 @@ public class VariantController {
     }
 
     @Operation(summary = "Get variant by SKU")
-    @GetMapping("/api/variants/by-sku/{sku}")
+    @GetMapping("/api/v1/variants/by-sku/{sku}")
     public ResponseEntity<VariantDTO> bySku(@PathVariable String sku) {
         return ResponseEntity.ok(getBySku.handle(new GetVariantBySkuQuery(sku)));
     }
 
     @Operation(summary = "Check if a SKU has enough stock to fulfil a quantity")
-    @GetMapping("/api/variants/by-sku/{sku}/has-stock")
+    @GetMapping("/api/v1/variants/by-sku/{sku}/has-stock")
     public ResponseEntity<Boolean> hasStock(@PathVariable String sku,
                                               @RequestParam(defaultValue = "1") int requested) {
         VariantDTO dto = checkStock.handle(new CheckStockQuery(sku, requested));

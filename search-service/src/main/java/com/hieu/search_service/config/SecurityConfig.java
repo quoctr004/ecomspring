@@ -38,10 +38,10 @@ public class SecurityConfig {
                     "/swagger-ui/**",
                     "/swagger-ui.html").permitAll()
                 // public search endpoints
-                .requestMatchers(HttpMethod.GET, "/api/search", "/api/search/suggest").permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/search").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/v1/search", "/api/v1/search/suggest").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/v1/search").permitAll()
                 // admin-only indexing
-                .requestMatchers("/api/search/index/**").hasRole("ADMIN")
+                .requestMatchers("/api/v1/search/index/**").hasRole("ADMIN")
                 .anyRequest().authenticated())
             .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();

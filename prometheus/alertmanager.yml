@@ -1,0 +1,54 @@
+# AlertManager routing config.
+# Dev: all alerts go to webhook (console) — no real Slack/PagerDuty integration.
+# Prod: replace webhook with slack_api_url + pagerduty_configs.
+
+global:
+  resolve_timeout: 5m
+
+# Routing tree — top-level matches `severity` label set by alert rules.
+route:
+  receiver: 'default'
+  group_by: ['alertname', 'service']
+  group_wait: 30s             # wait 30s before sending first notification for a new group
+  group_interval: 5m          # wait 5m before sending updates for an existing group
+  repeat_interval: 4h         # re-page every 4h while still firing
+  routes:
+    - matchers:
+        - severity = "critical"
+      receiver: 'critical'
+      group_wait: 10s         # critical: page fast
+      repeat_interval: 1h     # re-page hourly
+    - matchers:
+        - severity = "warning"
+      receiver: 'warning'
+
+receivers:
+  - name: 'default'
+    webhook_configs:
+      - url: 'http://host.docker.internal:8099/alerts'
+        send_resolved: true
+
+  - name: 'critical'
+    # Replace with real channels in prod:
+    # slack_configs:
+    #   - api_url: 'https://hooks.slack.com/services/XXX/YYY/ZZZ'
+    #     channel: '#alerts-critical'
+    # pagerduty_configs:
+    #   - service_key: '<pd-integration-key>'
+    webhook_configs:
+      - url: 'http://host.docker.internal:8099/alerts/critical'
+        send_resolved: true
+
+  - name: 'warning'
+    webhook_configs:
+      - url: 'http://host.docker.internal:8099/alerts/warning'
+        send_resolved: true
+
+# Inhibit "service down" derived alerts when the root "service down" is firing —
+# avoids alert storm where every metric goes red because the scrape target is gone.
+inhibit_rules:
+  - source_matchers:
+      - alertname = "ServiceDown"
+    target_matchers:
+      - severity =~ "warning|critical"
+    equal: ['job']

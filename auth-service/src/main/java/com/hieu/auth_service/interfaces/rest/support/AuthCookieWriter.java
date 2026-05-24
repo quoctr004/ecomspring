@@ -1,13 +1,14 @@
 package com.hieu.auth_service.interfaces.rest.support;
 
-import com.hieu.auth_service.application.dto.AuthResponseDTO;
+import java.time.Duration;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 
-import java.time.Duration;
+import com.hieu.auth_service.application.dto.AuthResponseDTO;
 
 /**
  * Writes access + refresh tokens onto HttpOnly cookies and returns a sanitised body.

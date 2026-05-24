@@ -30,8 +30,12 @@ public class LogoutHandler implements CommandHandler<LogoutCommand, Void> {
     @Transactional
     public Void handle(LogoutCommand command) {
         // Step 1: revoke the refresh token (idempotent — missing token simply means the user is already out).
-        refreshTokenRepository.findByTokenValue(TokenValue.of(command.refreshToken()))
-                .ifPresent(this::revokeRefresh);
+        // Refresh cookie may legitimately be absent (e.g. SameSite=Strict + cross-origin, expired,
+        // or never issued for stateless API clients) — skip lookup instead of crashing on TokenValue.of(null).
+        if (command.refreshToken() != null && !command.refreshToken().isBlank()) {
+            refreshTokenRepository.findByTokenValue(TokenValue.of(command.refreshToken()))
+                    .ifPresent(this::revokeRefresh);
+        }
 
         // H5: Blacklist access token in a separate try-catch AFTER refresh revoke has committed.
         // An expired/malformed access token must NOT roll back the already-committed refresh revoke.

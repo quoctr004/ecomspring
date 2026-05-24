@@ -37,7 +37,7 @@ import java.util.List;
  * catalog-manager roles that aren't full admins).
  */
 @RestController
-@RequestMapping("/api/products")
+@RequestMapping("/api/v1/products")
 @RequiredArgsConstructor
 @Tag(name = "Products", description = "Product catalog — browsing + admin CRUD.")
 public class ProductController {

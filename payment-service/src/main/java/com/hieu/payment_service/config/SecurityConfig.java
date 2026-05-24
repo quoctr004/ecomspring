@@ -37,9 +37,9 @@ public class SecurityConfig {
                     "/v3/api-docs/**",
                     "/swagger-ui/**",
                     "/swagger-ui.html",
-                    "/api/payments/sepay/webhook",
+                    "/api/v1/payments/sepay/webhook",
                     // Storefront pulls the enabled provider catalog before login completes.
-                    "/api/payments/methods").permitAll()
+                    "/api/v1/payments/methods").permitAll()
                 .anyRequest().authenticated())
             .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();

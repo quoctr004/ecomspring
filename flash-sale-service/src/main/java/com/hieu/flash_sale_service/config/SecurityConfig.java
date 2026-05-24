@@ -33,9 +33,9 @@ public class SecurityConfig {
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 // Public endpoints
-                .requestMatchers(HttpMethod.GET, "/api/flash-sales/active").permitAll()
-                .requestMatchers(HttpMethod.GET, "/api/flash-sales/{id}").permitAll()
-                .requestMatchers(HttpMethod.GET, "/api/flash-sales/{id}/availability").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/v1/flash-sales/active").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/v1/flash-sales/{id}").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/v1/flash-sales/{id}/availability").permitAll()
                 // Ops + docs
                 .requestMatchers(
                     "/actuator/**",

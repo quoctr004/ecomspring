@@ -17,7 +17,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 
 /** REST API for inventory management. */
 @RestController
-@RequestMapping("/api/inventory")
+@RequestMapping("/api/v1/inventory")
 @Tag(name = "Inventory", description = "Stock management APIs")
 @RequiredArgsConstructor
 public class InventoryController {

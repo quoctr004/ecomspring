@@ -41,9 +41,9 @@ public class SecurityConfig {
                     "/swagger-ui/**",
                     "/swagger-ui.html").permitAll()
                 .requestMatchers(HttpMethod.POST,
-                    "/api/inventory/reserve",
-                    "/api/inventory/confirm",
-                    "/api/inventory/release").permitAll()
+                    "/api/v1/inventory/reserve",
+                    "/api/v1/inventory/confirm",
+                    "/api/v1/inventory/release").permitAll()
                 .anyRequest().authenticated())
             .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();

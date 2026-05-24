@@ -61,7 +61,7 @@ def request(url, method="GET", data=None, headers=None, raw_response=False):
 def login_admin():
     """Login admin → return access token from Set-Cookie."""
     req = urllib.request.Request(
-        f"{AUTH}/api/auth/login",
+        f"{AUTH}/api/v1/auth/login",
         data=json.dumps({"usernameOrEmail": "admin", "password": "Admin@2026"}).encode(),
         method="POST",
     )
@@ -303,7 +303,7 @@ def main():
     for p in products:
         body = json.dumps(p).encode()
         req = urllib.request.Request(
-            f"{CATALOG}/api/products", data=body, method="POST",
+            f"{CATALOG}/api/v1/products", data=body, method="POST",
         )
         req.add_header("Content-Type", "application/json")
         req.add_header("Authorization", f"Bearer {token}")

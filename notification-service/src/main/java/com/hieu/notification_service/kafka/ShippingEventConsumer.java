@@ -30,12 +30,13 @@ public class ShippingEventConsumer {
         var status = str(payload, "status");
         var title = "Đơn " + orderNumber + " đang ở trạng thái " + status;
 
-        // IN_APP always
+        // IN_APP always. .block() on Kafka thread = at-least-once ack semantics.
         notificationService.send(SendNotificationRequest.builder()
                 .userId(userId).type(NotificationType.IN_APP)
                 .title(title).content(title)
                 .referenceType("SHIPPING").referenceId(orderNumber)
-                .build());
+                .build())
+                .block();
 
         // EMAIL: payload first, gRPC fallback
         var email = str(payload, "email");
@@ -47,7 +48,8 @@ public class ShippingEventConsumer {
                     .userId(userId).type(NotificationType.EMAIL)
                     .channel(resolvedEmail).title(title).content(title)
                     .referenceType("SHIPPING").referenceId(orderNumber)
-                    .build());
+                    .build())
+                    .block();
         } else {
             log.debug("No email resolved for userId={}, skipping EMAIL notification", userId);
         }

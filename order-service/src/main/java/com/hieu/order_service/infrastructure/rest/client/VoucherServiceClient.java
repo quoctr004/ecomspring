@@ -1,152 +1,91 @@
 package com.hieu.order_service.infrastructure.rest.client;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hieu.order_service.domain.exception.ServiceUnavailableException;
+import com.hieu.order_service.infrastructure.rest.client.exception.VoucherInvalidException;
+import feign.FeignException;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatusCode;
-import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestClient;
-import org.springframework.web.client.RestClientException;
 
 import java.math.BigDecimal;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
-import java.util.Map;
 
 /**
- * REST client for voucher-service — validate (apply) + release.
- * Uses Spring 6 {@link RestClient} fluent API; behavior is identical to the former
- * {@link org.springframework.web.client.RestTemplate} version.
+ * Domain-shaped facade over {@link VoucherClient}.
  *
- * <p>Validation errors (4xx from voucher-service: 404 not-found, 422 min-order/expired,
- * 409 limit-reached) surface as {@link VoucherInvalidException} so saga can mark order
- * FAILED with a clean reason instead of treating them as transport failures.
+ * <p>Translates the HTTP-shaped Feign contract into the business semantics
+ * expected by the saga: {@code validateAndApply(...)} either returns a discount
+ * amount or throws {@link VoucherInvalidException} (rejected) /
+ * {@link ServiceUnavailableException} (transport failure). The error-decoder in
+ * {@code FeignConfig} already does this mapping; the catch-all here covers any
+ * residual {@link FeignException} (e.g. decode errors).
  */
 @Component
+@RequiredArgsConstructor
 @Slf4j
 public class VoucherServiceClient {
 
-    private static final ParameterizedTypeReference<Map<String, Object>> MAP_TYPE =
-            new ParameterizedTypeReference<>() {};
+    private static final String SERVICE_NAME = "voucher-service";
 
-    private final RestClient restClient;
-    private final ObjectMapper objectMapper;
-    private final String voucherServiceUrl;
-
-    public VoucherServiceClient(@Qualifier("serviceRestClient") RestClient restClient,
-                                ObjectMapper objectMapper,
-                                @Value("${services.voucher-url:http://localhost:8094}") String voucherServiceUrl) {
-        this.restClient = restClient;
-        this.objectMapper = objectMapper;
-        this.voucherServiceUrl = voucherServiceUrl;
-    }
+    private final VoucherClient voucherClient;
 
     /**
-     * Validate + atomically reserve a voucher slot. Returns the discount amount the
-     * order should subtract from its subtotal.
+     * Validate + atomically reserve a voucher slot.
      *
-     * @param code         voucher code from order request
-     * @param orderAmount  subtotal BEFORE discount (so voucher-service can check minOrder)
-     * @param userId       order owner — for per-user usage limits
-     * @param orderId      order id (numeric) — used as idempotency key for release later
-     * @param productIds   variant/product ids in the cart — for product-restricted vouchers
-     * @param authToken    end-user JWT (forwarded so gateway lets the call through)
+     * @param code        voucher code from order request
+     * @param orderAmount subtotal BEFORE discount (so voucher-service can check minOrder)
+     * @param userId      order owner — for per-user usage limits
+     * @param orderId     order id (numeric) — used as idempotency key for release later
+     * @param productIds  variant/product ids in the cart — for product-restricted vouchers
+     * @param authToken   ignored when called from an HTTP request (interceptor forwards it).
+     *                    Kept in the signature to preserve the existing saga API.
+     * @return the discount amount to subtract from the subtotal
+     * @throws VoucherInvalidException     when voucher-service rejects (4xx)
+     * @throws ServiceUnavailableException on transport failures
      */
     public BigDecimal validateAndApply(String code, BigDecimal orderAmount, String userId,
                                        Long orderId, List<Long> productIds, String authToken) {
-        // voucher-service DTO declares orderId:String + productIds:List<String> — encode
-        // here so Jackson coercion config on the server side doesn't matter.
-        var body = new java.util.LinkedHashMap<String, Object>();
-        body.put("code", code);
-        body.put("orderAmount", orderAmount);
-        body.put("userId", userId);
-        body.put("orderId", String.valueOf(orderId));
-        if (productIds != null && !productIds.isEmpty()) {
-            body.put("productIds", productIds.stream().map(String::valueOf).toList());
-        }
-
         try {
-            var spec = restClient.post()
-                    .uri(voucherServiceUrl + "/api/vouchers/validate")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(body);
+            // Server-side DTO uses String types for orderId + productIds — encode here so
+            // we don't depend on the server's Jackson coercion config.
+            List<String> productIdStrings = (productIds == null || productIds.isEmpty())
+                    ? List.of()
+                    : productIds.stream().map(String::valueOf).toList();
 
-            if (authToken != null && !authToken.isBlank()) {
-                String bearer = authToken.startsWith("Bearer ") ? authToken : "Bearer " + authToken;
-                spec = spec.header(HttpHeaders.AUTHORIZATION, bearer);
+            var req = new VoucherClient.ValidateRequest(
+                    code, orderAmount, userId, String.valueOf(orderId), productIdStrings);
+
+            var resp = voucherClient.validate(req);
+            if (resp == null || resp.data() == null || resp.data().discountAmount() == null) {
+                log.warn("voucher.validate({}) returned empty discountAmount", code);
+                throw new ServiceUnavailableException(SERVICE_NAME);
             }
-
-            Map<String, Object> payload = spec.retrieve()
-                    .onStatus(HttpStatusCode::is4xxClientError, (req, resp) -> {
-                        // 4xx → voucher rejected. Read message from ApiResponse envelope.
-                        // Don't log full response body — may contain PII (orderId/userId/amount).
-                        log.warn("Voucher {} rejected: {}", code, resp.getStatusCode());
-                        String message = extractMessage(resp);
-                        throw new VoucherInvalidException(message, null);
-                    })
-                    .onStatus(HttpStatusCode::is5xxServerError, (req, resp) -> {
-                        throw new ServiceUnavailableException("voucher-service");
-                    })
-                    .body(MAP_TYPE);
-
-            payload = unwrap(payload);
-            if (payload == null || payload.get("discountAmount") == null) {
-                throw new ServiceUnavailableException("voucher-service: missing discountAmount");
-            }
-            return new BigDecimal(payload.get("discountAmount").toString());
+            return resp.data().discountAmount();
 
         } catch (VoucherInvalidException | ServiceUnavailableException e) {
             throw e;
-        } catch (RestClientException e) {
-            log.error("REST voucher.validate({}) failed: {}", code, e.getMessage());
-            throw new ServiceUnavailableException("voucher-service");
+        } catch (FeignException e) {
+            log.error("voucher.validate({}) failed: {}", code, e.getMessage());
+            throw new ServiceUnavailableException(SERVICE_NAME);
         }
     }
 
-    /** Idempotent release. Voucher-service handles double-release silently. */
+    /**
+     * Idempotent release. Compensation step in the saga — voucher-service
+     * accepts repeated releases silently. Never throws: a transient failure here
+     * is recoverable because voucher-service also consumes {@code order.cancelled}
+     * from Kafka for eventual cleanup.
+     */
     public void release(String code, Long orderId) {
         try {
-            restClient.post()
-                    .uri(voucherServiceUrl + "/api/vouchers/release")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(Map.of("code", code, "orderId", String.valueOf(orderId)))
-                    .retrieve()
-                    .toBodilessEntity();
+            voucherClient.release(new VoucherClient.ReleaseRequest(code, String.valueOf(orderId)));
             log.info("Released voucher {} for order {}", code, orderId);
-        } catch (RestClientException e) {
-            // Compensation must not throw — voucher cleanup is best-effort. Voucher-service
-            // also receives order.cancelled via Kafka so a transient failure here is recoverable.
-            log.warn("REST voucher.release({}, {}) failed (will rely on Kafka): {}",
+        } catch (ServiceUnavailableException | FeignException e) {
+            // Compensation must NOT throw — both the ErrorDecoder's wrapped exception
+            // and any raw Feign IO error are swallowed. order.cancelled on Kafka will
+            // trigger voucher-service's own cleanup as a backstop.
+            log.warn("voucher.release({}, {}) failed (will rely on Kafka): {}",
                     code, orderId, e.getMessage());
         }
-    }
-
-    @SuppressWarnings("unchecked")
-    private static Map<String, Object> unwrap(Map<String, Object> b) {
-        if (b == null) return null;
-        Object data = b.get("data");
-        return data instanceof Map<?, ?> ? (Map<String, Object>) data : b;
-    }
-
-    /** Pulls "message" out of voucher-service's ApiResponse error envelope via response body. */
-    private String extractMessage(org.springframework.http.client.ClientHttpResponse resp) {
-        try {
-            byte[] bytes = resp.getBody().readAllBytes();
-            var node = objectMapper.readTree(new String(bytes, StandardCharsets.UTF_8));
-            var msg = node.path("message").asText(null);
-            return (msg == null || msg.isBlank()) ? resp.getStatusCode().toString() : msg;
-        } catch (Exception ignored) {
-            try { return resp.getStatusCode().toString(); } catch (Exception e2) { return "voucher rejected"; }
-        }
-    }
-
-    /** Thrown when voucher-service explicitly rejects (4xx) — saga maps to order FAILED. */
-    public static class VoucherInvalidException extends RuntimeException {
-        public VoucherInvalidException(String msg, Throwable cause) { super(msg, cause); }
     }
 }

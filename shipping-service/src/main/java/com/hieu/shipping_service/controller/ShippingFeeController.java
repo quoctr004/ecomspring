@@ -25,7 +25,7 @@ import java.util.Map;
  * {@link #updateCarrier} to manage the table without redeploying.
  */
 @RestController
-@RequestMapping("/api/shipping")
+@RequestMapping("/api/v1/shipping")
 @RequiredArgsConstructor
 public class ShippingFeeController {
 

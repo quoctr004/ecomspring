@@ -1,5 +1,14 @@
 package com.hieu.auth_service.interfaces.rest;
 
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
 import com.hieu.auth_service.application.command.ChangePasswordCommand;
 import com.hieu.auth_service.application.command.LoginCommand;
 import com.hieu.auth_service.application.command.LoginWithGoogleCommand;
@@ -16,6 +25,7 @@ import com.hieu.auth_service.interfaces.rest.dto.GoogleLoginRequest;
 import com.hieu.auth_service.interfaces.rest.dto.LoginRequest;
 import com.hieu.auth_service.interfaces.rest.dto.RegisterRequest;
 import com.hieu.auth_service.interfaces.rest.support.AuthCookieWriter;
+
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -23,14 +33,6 @@ import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
 
 /**
  * Public authentication endpoints.
@@ -44,7 +46,7 @@ import org.springframework.web.bind.annotation.RestController;
  * <p>Controllers stay thin: adapt HTTP → command, delegate, map response.
  */
 @RestController
-@RequestMapping("/api/auth")
+@RequestMapping("/api/v1/auth")
 @Tag(name = "Authentication", description = "Register, login, token rotation, logout, password change.")
 @RequiredArgsConstructor
 public class AuthController {

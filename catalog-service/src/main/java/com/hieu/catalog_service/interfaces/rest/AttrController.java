@@ -24,7 +24,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/attrs")
+@RequestMapping("/api/v1/attrs")
 @RequiredArgsConstructor
 @Tag(name = "Attributes", description = "Attribute definitions used by product variants.")
 public class AttrController {

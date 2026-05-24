@@ -113,7 +113,7 @@ IMG = {
 def login_admin() -> str:
     """Log in admin user, return JWT from Set-Cookie."""
     req = urllib.request.Request(
-        f"{AUTH}/api/auth/login",
+        f"{AUTH}/api/v1/auth/login",
         data=json.dumps({"usernameOrEmail": "admin", "password": "Admin@2026"}).encode(),
         method="POST",
     )
@@ -127,7 +127,7 @@ def login_admin() -> str:
 
 def wipe_existing(token: str):
     """DELETE every existing product so re-seeding is idempotent."""
-    req = urllib.request.Request(f"{CATALOG}/api/products?size=500", method="GET")
+    req = urllib.request.Request(f"{CATALOG}/api/v1/products?size=500", method="GET")
     req.add_header("Authorization", f"Bearer {token}")
     with urllib.request.urlopen(req, timeout=20) as r:
         data = json.loads(r.read().decode())
@@ -135,7 +135,7 @@ def wipe_existing(token: str):
     print(f"🧹 Wiping {len(ids)} existing products…")
     for pid in ids:
         try:
-            req = urllib.request.Request(f"{CATALOG}/api/products/{pid}", method="DELETE")
+            req = urllib.request.Request(f"{CATALOG}/api/v1/products/{pid}", method="DELETE")
             req.add_header("Authorization", f"Bearer {token}")
             urllib.request.urlopen(req, timeout=10).read()
         except urllib.error.HTTPError as e:
@@ -210,7 +210,7 @@ def product(name: str, desc: str, brand: str, cat_id: int, variants: list, image
 
 def post_product(token: str, p: dict) -> int | None:
     body = json.dumps(p).encode()
-    req = urllib.request.Request(f"{CATALOG}/api/products", data=body, method="POST")
+    req = urllib.request.Request(f"{CATALOG}/api/v1/products", data=body, method="POST")
     req.add_header("Content-Type", "application/json")
     req.add_header("Authorization", f"Bearer {token}")
     try:

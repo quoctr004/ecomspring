@@ -1,0 +1,43 @@
+# Build artifacts — let Docker stage 1 regenerate cleanly
+**/target/
+**/*.jar
+**/*.war
+
+# IDE / OS junk
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Local env / secrets — NEVER ship into images
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+
+# Logs / runtime
+logs/
+*.log
+
+# Git / docs irrelevant to runtime
+.git/
+.gitignore
+docs/
+README.md
+*.md
+HELP.md
+HIEU-*.docx
+*.pdf
+
+# Test data
+test-e2e.sh
+seed-*.py
+seed-*.sh
+load-tests/
+scratch/
+
+# Maven wrapper cache
+**/.mvn/wrapper/maven-wrapper.jar

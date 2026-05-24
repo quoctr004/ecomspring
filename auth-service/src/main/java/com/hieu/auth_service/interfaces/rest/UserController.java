@@ -43,7 +43,7 @@ import org.springframework.web.bind.annotation.RestController;
  * {@link AuthUserDetails#getAuthorities()}. Admin-only endpoints require {@code ROLE_ADMIN}.
  */
 @RestController
-@RequestMapping("/api/users")
+@RequestMapping("/api/v1/users")
 @SecurityRequirement(name = "bearerAuth")
 @Tag(name = "Users", description = "Profile, authorisation lookups, and admin management.")
 @RequiredArgsConstructor

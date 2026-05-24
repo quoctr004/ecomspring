@@ -1,24 +1,26 @@
 spring:
-  # Auto-load .env as properties (Spring Boot 3.1+) — file is optional.
   config:
     import: optional:file:.env[.properties]
   threads:
     virtual:
-      enabled: true     # Java 25 virtual threads for Tomcat + @Async + sagaExecutor
-
+      enabled: true
   application:
     name: order-service
-
   grpc:
     server:
       port: ${GRPC_PORT:9095}
-
   datasource:
     driver-class-name: ${DB_DRIVER:org.postgresql.Driver}
     url: ${DB_URL:jdbc:postgresql://localhost:5436/orderdb}
     username: ${DB_USER:orderuser}
     password: ${DB_PASSWORD:orderpass}
-
+    hikari:
+      maximum-pool-size: ${DB_POOL_MAX:50}
+      minimum-idle: ${DB_POOL_MIN:10}
+      connection-timeout: 3000
+      max-lifetime: 1800000
+      idle-timeout: 600000
+      leak-detection-threshold: 60000
   jpa:
     database-platform: ${JPA_DIALECT:org.hibernate.dialect.PostgreSQLDialect}
     hibernate:
@@ -27,19 +29,15 @@ spring:
     properties:
       hibernate:
         format_sql: true
-
   flyway:
     enabled: ${FLYWAY_ENABLED:true}
     locations: classpath:db/migration
     baseline-on-migrate: true
-
   data:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
       password: ${REDIS_PASSWORD:}
-      # Idempotency Lua claim sits on the request thread — keep timeouts tight so a
-      # Redis hiccup fails fast instead of pinning saga workers.
       timeout: 1s
       connect-timeout: 500ms
       lettuce:
@@ -49,7 +47,6 @@ spring:
           min-idle: 2
           max-wait: 500ms
         shutdown-timeout: 100ms
-
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:9092}
     producer:
@@ -63,23 +60,18 @@ spring:
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       auto-offset-reset: latest
       properties:
-        # Ignore __TypeId__ headers — payment/shipping publish without them. Deserialise
-        # straight into Map<String,Object>; listeners read fields defensively.
         spring.json.use.type.headers: false
         spring.json.value.default.type: java.util.HashMap
-        spring.json.trusted.packages: "com.hieu.*"
+        spring.json.trusted.packages: com.hieu.*
     listener:
       missing-topics-fatal: false
-
+      concurrency: ${KAFKA_CONCURRENCY:3}
 server:
   port: ${SERVER_PORT:8085}
-
 jwt:
   secret: ${JWT_SECRET:change-me-change-me-change-me-change-me-please-32chars}
-
 security:
   internal-token: ${INTERNAL_TOKEN:change-me-internal-token-min-32-chars-please}
-
 eureka:
   client:
     service-url:
@@ -88,7 +80,6 @@ eureka:
     fetch-registry: true
   instance:
     prefer-ip-address: true
-
 grpc:
   client:
     catalog:
@@ -97,22 +88,16 @@ grpc:
       address: ${CART_GRPC_ADDRESS:localhost:9094}
     inventory:
       address: ${INVENTORY_GRPC_ADDRESS:localhost:9098}
-
-# REST companions to gRPC — used where gRPC is unavailable (payment-service) or as fallback.
 services:
-  catalog-url:   ${CATALOG_SERVICE_URL:http://localhost:8083}
-  cart-url:      ${CART_SERVICE_URL:http://localhost:8084}
-  payment-url:   ${PAYMENT_SERVICE_URL:http://localhost:8086}
-  shipping-url:  ${SHIPPING_SERVICE_URL:http://localhost:8087}
+  catalog-url: ${CATALOG_SERVICE_URL:http://localhost:8083}
+  cart-url: ${CART_SERVICE_URL:http://localhost:8084}
+  payment-url: ${PAYMENT_SERVICE_URL:http://localhost:8086}
+  shipping-url: ${SHIPPING_SERVICE_URL:http://localhost:8087}
   inventory-url: ${INVENTORY_SERVICE_URL:http://localhost:8088}
-  voucher-url:   ${VOUCHER_SERVICE_URL:http://localhost:8094}
-
+  voucher-url: ${VOUCHER_SERVICE_URL:http://localhost:8094}
 outbox:
   poll-delay-ms: 500
-  # Cap batch so worst-case Kafka stall (batch-size × send-timeout) stays under
-  # Hikari's pool-keepalive — prevents pool starvation when broker is degraded.
   batch-size: 25
-
 springdoc:
   api-docs:
     path: /v3/api-docs
@@ -120,7 +105,6 @@ springdoc:
     path: /swagger-ui.html
     operations-sorter: method
     tags-sorter: alpha
-
 management:
   endpoints:
     web:
@@ -129,17 +113,85 @@ management:
   endpoint:
     health:
       show-details: when-authorized
-
 logging:
   level:
     com.hieu.order_service: DEBUG
     org.hibernate.SQL: WARN
   pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss} %-5level [%thread] %logger{30} - %msg%n"
-
-# Shared SePay QR template — same bank as payment-service so QR URLs match.
+    # traceId/spanId auto-populated by Micrometer Tracing — correlate logs with
+    # the same trace in the Zipkin UI when debugging saga failures.
+    console: '%d{yyyy-MM-dd HH:mm:ss} %-5level [%thread] [%X{traceId:-},%X{spanId:-}] %logger{30} - %msg%n'
 sepay:
-  qr-base-url:  ${SEPAY_QR_BASE_URL:https://qr.sepay.vn/img}
-  bank-code:    ${SEPAY_BANK_CODE:BIDV}
+  qr-base-url: ${SEPAY_QR_BASE_URL:https://qr.sepay.vn/img}
+  bank-code: ${SEPAY_BANK_CODE:BIDV}
   bank-account: ${SEPAY_BANK_ACCOUNT:96247CISI1}
   account-name: ${SEPAY_ACCOUNT_NAME:TO TRONG HIEU}
+spring.cloud.openfeign.client.config:
+  default:
+    connectTimeout: ${FEIGN_CONNECT_TIMEOUT:2000}
+    readTimeout: ${FEIGN_READ_TIMEOUT:3000}
+    loggerLevel: ${FEIGN_LOG_LEVEL:BASIC}
+  payment-service:
+    connectTimeout: ${FEIGN_PAYMENT_CONNECT_TIMEOUT:3000}
+    readTimeout: ${FEIGN_PAYMENT_READ_TIMEOUT:10000}
+  voucher-service:
+    readTimeout: ${FEIGN_VOUCHER_READ_TIMEOUT:5000}
+
+# ── Feign + Resilience4j circuit breaker ──
+# Wraps Feign calls in Resilience4j; failures count toward the breaker for
+# that downstream service. Per-instance config below sets thresholds; the
+# default profile is used for services without an explicit instance.
+spring.cloud.openfeign.circuitbreaker:
+  enabled: true
+  group:
+    enabled: true
+
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        slidingWindowSize: 20
+        minimumNumberOfCalls: 10
+        failureRateThreshold: 50           # 50% fail → OPEN
+        slowCallDurationThreshold: 3s
+        slowCallRateThreshold: 70
+        waitDurationInOpenState: 15s       # 15s before HALF_OPEN
+        permittedNumberOfCallsInHalfOpenState: 5
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+        registerHealthIndicator: true
+    instances:
+      # PaymentClient — saga critical path. Sligthly more lenient.
+      PaymentClient:
+        baseConfig: default
+        slidingWindowSize: 30
+        failureRateThreshold: 60
+        waitDurationInOpenState: 30s
+      # VoucherClient — non-critical (saga proceeds without voucher if it fails).
+      VoucherClient:
+        baseConfig: default
+        failureRateThreshold: 40
+        waitDurationInOpenState: 10s
+      # InventoryClient + CartClient + CatalogClient — use defaults.
+  timelimiter:
+    configs:
+      default:
+        timeoutDuration: 5s
+        cancelRunningFuture: true
+    instances:
+      PaymentClient:
+        baseConfig: default
+        timeoutDuration: 10s              # PSP may need longer
+
+# ── Distributed tracing (Micrometer + Zipkin) ──
+# 100% sampling in dev for visibility; reduce to 0.1 (10%) in prod via
+# MANAGEMENT_TRACING_SAMPLING_PROBABILITY env var. Spans flow through the
+# saga (HTTP request → Feign payment → Kafka event → consumer) without
+# extra instrumentation.
+management:
+  tracing:
+    sampling:
+      probability: ${MANAGEMENT_TRACING_SAMPLING_PROBABILITY:1.0}
+    enabled: true
+  zipkin:
+    tracing:
+      endpoint: ${ZIPKIN_URL:http://localhost:9411/api/v2/spans}

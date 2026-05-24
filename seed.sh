@@ -5,10 +5,10 @@ CATALOG="http://localhost:8083"
 VOUCHER="http://localhost:8094"
 
 echo "📦 1. Register users"
-curl -sS -X POST "$AUTH/api/auth/register" -H "Content-Type: application/json" \
+curl -sS -X POST "$AUTH/api/v1/auth/register" -H "Content-Type: application/json" \
   -d '{"username":"admin","email":"admin@luxury.vn","password":"Admin@2026","firstName":"Quan","lastName":"Tri"}' > /tmp/r-admin.json
 echo "  admin → $(head -c 100 /tmp/r-admin.json)"
-curl -sS -X POST "$AUTH/api/auth/register" -H "Content-Type: application/json" \
+curl -sS -X POST "$AUTH/api/v1/auth/register" -H "Content-Type: application/json" \
   -d '{"username":"customer","email":"customer@luxury.vn","password":"Customer@2026","firstName":"Khach","lastName":"Hang"}' > /tmp/r-cust.json
 echo "  customer → $(head -c 100 /tmp/r-cust.json)"
 
@@ -22,7 +22,7 @@ SELECT u.username, r.name FROM users u JOIN user_roles ur ON ur.user_id=u.id JOI
 
 echo
 echo "📦 3. Login admin (extract token from Set-Cookie)"
-HDR=$(curl -sS -i -X POST "$AUTH/api/auth/login" -H "Content-Type: application/json" \
+HDR=$(curl -sS -i -X POST "$AUTH/api/v1/auth/login" -H "Content-Type: application/json" \
   -d '{"usernameOrEmail":"admin","password":"Admin@2026"}')
 TOKEN=$(echo "$HDR" | grep -i "Set-Cookie:.*ACCESS_TOKEN" | head -1 | sed -E 's/.*ACCESS_TOKEN=([^;]+).*/\1/')
 if [[ -z "$TOKEN" ]]; then echo "❌ no token in Set-Cookie"; echo "$HDR" | head -30; exit 1; fi
@@ -35,7 +35,7 @@ extract_id() { python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get(
 
 mk_cat() {
   local name="$1" parent="${2:-null}"
-  local resp=$(curl -sS -X POST "$CATALOG/api/categories" -H "$H" -H "$J" \
+  local resp=$(curl -sS -X POST "$CATALOG/api/v1/categories" -H "$H" -H "$J" \
     -d "{\"name\":\"$name\",\"description\":\"$name\",\"parentId\":$parent,\"sortOrder\":0}")
   local id=$(echo "$resp" | extract_id)
   if [[ -z "$id" ]]; then echo "  ✗ $name → $(echo $resp | head -c 200)" >&2; fi
@@ -70,7 +70,7 @@ mk_attr() {
     done
     vals="$vals]"
   fi
-  local resp=$(curl -sS -X POST "$CATALOG/api/attrs" -H "$H" -H "$J" \
+  local resp=$(curl -sS -X POST "$CATALOG/api/v1/attrs" -H "$H" -H "$J" \
     -d "{\"code\":\"$code\",\"name\":\"$name\",\"type\":\"$type\",\"values\":$vals}")
   local id=$(echo "$resp" | extract_id)
   [[ -z "$id" ]] && echo "  ✗ $name → $(echo $resp | head -c 180)" || echo "  ✓ $name (id=$id)"
@@ -85,7 +85,7 @@ echo
 echo "📦 6. Seed products"
 mk_p() {
   local body="$1"
-  local resp=$(curl -sS -X POST "$CATALOG/api/products" -H "$H" -H "$J" -d "$body")
+  local resp=$(curl -sS -X POST "$CATALOG/api/v1/products" -H "$H" -H "$J" -d "$body")
   local name=$(echo "$body" | python3 -c "import sys,json; print(json.load(sys.stdin)['name'])" 2>/dev/null)
   local id=$(echo "$resp" | extract_id)
   [[ -z "$id" ]] && echo "  ✗ $name → $(echo $resp | head -c 250)" || echo "  ✓ $name (id=$id)"
@@ -119,7 +119,7 @@ mk_p "{\"name\":\"MacBook Air M3\",\"description\":\"Chip M3 mới nhất. Màn 
 echo
 echo "📦 7. Seed vouchers"
 mk_v() {
-  local resp=$(curl -sS -X POST "$VOUCHER/api/vouchers" -H "$H" -H "$J" -d "$1")
+  local resp=$(curl -sS -X POST "$VOUCHER/api/v1/vouchers" -H "$H" -H "$J" -d "$1")
   local code=$(echo "$1" | python3 -c "import sys,json; print(json.load(sys.stdin)['code'])" 2>/dev/null)
   local id=$(echo "$resp" | extract_id)
   [[ -z "$id" ]] && echo "  ✗ $code → $(echo $resp | head -c 150)" || echo "  ✓ $code"

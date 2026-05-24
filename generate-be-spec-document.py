@@ -663,7 +663,7 @@ add_table(doc,
         ["FR-AUTH-04", "Đăng xuất", "Revoke refresh token, xóa cookie"],
         ["FR-AUTH-05", "Đổi mật khẩu", "Yêu cầu mật khẩu cũ + mới; revoke toàn bộ refresh hiện có"],
         ["FR-AUTH-06", "Quản lý Role/Permission", "Admin CRUD role, permission; gán/thu hồi role cho user"],
-        ["FR-AUTH-07", "Kiểm tra trạng thái đăng nhập", "Endpoint /api/auth/me trả AuthenticatedUser từ JWT"],
+        ["FR-AUTH-07", "Kiểm tra trạng thái đăng nhập", "Endpoint /api/v1/auth/me trả AuthenticatedUser từ JWT"],
         ["FR-AUTH-08", "Soft-delete user", "Đánh dấu status=DELETED thay cho xóa cứng để giữ audit trail"],
     ],
     col_widths_cm=[2.5, 4.0, 9.5])
@@ -676,7 +676,7 @@ add_table(doc,
         ["FR-CAT-02", "Variant matrix", "Mỗi product có nhiều variant (SKU, giá, sale price, quantity)"],
         ["FR-CAT-03", "Attribute system", "Quản lý attr (size, color…) + attrVal; gán cho variant"],
         ["FR-CAT-04", "Category tree", "Parent-child, slug duy nhất, sortOrder"],
-        ["FR-CAT-05", "Public listing", "FE gọi /api/products với cursor pagination + filter"],
+        ["FR-CAT-05", "Public listing", "FE gọi /api/v1/products với cursor pagination + filter"],
         ["FR-CAT-06", "gRPC GetProduct/CheckStock", "Inter-service cần gọi nhanh để validate cart/order"],
         ["FR-CAT-07", "Phát Kafka event", "product-created/updated/deleted/status-changed cho inventory + search"],
     ],
@@ -846,7 +846,7 @@ add_table(doc,
         ["Actor", "Customer / Admin / Staff"],
         ["Mô tả", "User cung cấp credential, nhận cặp JWT cookie để dùng cho các request tiếp theo"],
         ["Tiền điều kiện", "Tài khoản tồn tại, status=ACTIVE; chưa bị rate limit (5 lần/phút/IP)"],
-        ["Luồng chính", "1. Client POST /api/auth/login {usernameOrEmail, password}\n2. Auth-service tìm user bằng username hoặc email\n3. Kiểm tra status=ACTIVE; nếu LOCKED/DELETED → 403\n4. BCrypt.matches(password, user.passwordHash); fail → 401 + tăng counter Redis\n5. Phát hành ACCESS (TTL 15p) + REFRESH (TTL 7d) ký HS256\n6. Lưu refreshTokenHash vào DB; trả Set-Cookie HttpOnly\n7. Phát Kafka auth.session.events.v1 = LOGIN_SUCCESS"],
+        ["Luồng chính", "1. Client POST /api/v1/auth/login {usernameOrEmail, password}\n2. Auth-service tìm user bằng username hoặc email\n3. Kiểm tra status=ACTIVE; nếu LOCKED/DELETED → 403\n4. BCrypt.matches(password, user.passwordHash); fail → 401 + tăng counter Redis\n5. Phát hành ACCESS (TTL 15p) + REFRESH (TTL 7d) ký HS256\n6. Lưu refreshTokenHash vào DB; trả Set-Cookie HttpOnly\n7. Phát Kafka auth.session.events.v1 = LOGIN_SUCCESS"],
         ["Luồng phụ", "Sai mật khẩu → 401; quá 5 lần/phút → 429; status LOCKED → 403"],
         ["Hậu điều kiện", "Browser có ACCESS + REFRESH cookie; audit trail ghi log"],
         ["Exceptions", "Auth-service down → 503; Redis down → fallback đếm bằng DB"],
@@ -864,7 +864,7 @@ add_table(doc,
         ["Actor", "Customer"],
         ["Mô tả", "Customer hoàn tất checkout từ giỏ – saga đa bước phối hợp 4 service"],
         ["Tiền điều kiện", "Đã đăng nhập; cart không rỗng; địa chỉ giao có sẵn"],
-        ["Luồng chính", "1. POST /api/orders/from-cart {addressId, paymentMethod, voucherCode?, idempotencyKey}\n2. Order-service kiểm tra idempotencyKey – nếu đã xử lý, trả response cũ\n3. Lấy cart qua gRPC tới cart-service\n4. Validate voucher qua REST tới voucher-service (ghi VoucherUsageRecord)\n5. Reserve inventory qua REST tới inventory-service – nhận reservationId\n6. Tạo Payment PENDING qua REST tới payment-service – nhận payUrl + qrCodeUrl\n7. INSERT order PENDING + outbox event order.placed (cùng transaction)\n8. Scheduler poll outbox → publish Kafka\n9. Cart-service consume order.placed → xóa cart"],
+        ["Luồng chính", "1. POST /api/v1/orders/from-cart {addressId, paymentMethod, voucherCode?, idempotencyKey}\n2. Order-service kiểm tra idempotencyKey – nếu đã xử lý, trả response cũ\n3. Lấy cart qua gRPC tới cart-service\n4. Validate voucher qua REST tới voucher-service (ghi VoucherUsageRecord)\n5. Reserve inventory qua REST tới inventory-service – nhận reservationId\n6. Tạo Payment PENDING qua REST tới payment-service – nhận payUrl + qrCodeUrl\n7. INSERT order PENDING + outbox event order.placed (cùng transaction)\n8. Scheduler poll outbox → publish Kafka\n9. Cart-service consume order.placed → xóa cart"],
         ["Luồng phụ", "Voucher invalid → 400; inventory không đủ → 409 + release voucher; payment-service down → rollback reservation + voucher"],
         ["Hậu điều kiện", "Order PENDING, reservation HOLD, voucher used, payment record PENDING"],
         ["Exceptions", "Idempotency hit → trả response cũ; database conflict → 409"],
@@ -882,7 +882,7 @@ add_table(doc,
         ["Actor", "Customer (yêu cầu); Admin/Staff (xử lý)"],
         ["Mô tả", "Customer submit yêu cầu sau khi nhận hàng – admin/staff review và phê duyệt"],
         ["Tiền điều kiện", "Đơn DELIVERED, chưa quá 30 ngày kể từ ngày giao"],
-        ["Luồng chính", "1. POST /api/orders/return-requests/{orderId} {reason, description, contactEmail}\n2. Order-service kiểm tra điều kiện + tạo ReturnRequest PENDING\n3. Phát Kafka order.return-requested\n4. Notification-service consume → email cho admin + customer\n5. Admin POST /approve hoặc /reject (kèm note)\n6. Nếu APPROVED – customer ship hàng về kho\n7. Admin POST /complete sau khi nhận hàng → trigger refund + restock"],
+        ["Luồng chính", "1. POST /api/v1/orders/return-requests/{orderId} {reason, description, contactEmail}\n2. Order-service kiểm tra điều kiện + tạo ReturnRequest PENDING\n3. Phát Kafka order.return-requested\n4. Notification-service consume → email cho admin + customer\n5. Admin POST /approve hoặc /reject (kèm note)\n6. Nếu APPROVED – customer ship hàng về kho\n7. Admin POST /complete sau khi nhận hàng → trigger refund + restock"],
         ["Luồng phụ", "Quá 30 ngày → 400; đơn không DELIVERED → 400; reject → status REJECTED"],
         ["Hậu điều kiện", "ReturnRequest có status cuối (APPROVED/REJECTED/COMPLETED); refund phát động nếu approved"],
         ["NFR liên quan", "NFR-08 (idempotency), NFR-13 (saga compensation)"],
@@ -1116,24 +1116,24 @@ add_para(doc, "API công khai (không yêu cầu JWT):", bold=True)
 add_table(doc,
     ["Method", "Path", "Mục đích"],
     [
-        ["POST", "/api/auth/register", "Đăng ký user mới"],
-        ["POST", "/api/auth/login", "Đăng nhập, trả Set-Cookie ACCESS + REFRESH"],
-        ["POST", "/api/auth/refresh", "Cấp ACCESS mới từ REFRESH cookie"],
+        ["POST", "/api/v1/auth/register", "Đăng ký user mới"],
+        ["POST", "/api/v1/auth/login", "Đăng nhập, trả Set-Cookie ACCESS + REFRESH"],
+        ["POST", "/api/v1/auth/refresh", "Cấp ACCESS mới từ REFRESH cookie"],
     ],
     col_widths_cm=[2.0, 6.0, 8.0])
 add_para(doc, "API bảo mật (yêu cầu cookie ACCESS):", bold=True)
 add_table(doc,
     ["Method", "Path", "Mục đích"],
     [
-        ["GET", "/api/auth/me", "Trả AuthenticatedUser của session hiện tại"],
-        ["POST", "/api/auth/logout", "Revoke refresh, xóa cookie"],
-        ["POST", "/api/auth/password/change", "Đổi mật khẩu (yêu cầu mật khẩu cũ)"],
-        ["GET", "/api/auth/users", "Admin – list user phân trang"],
-        ["PATCH", "/api/auth/users/{id}/lock", "Admin – khóa user"],
-        ["POST", "/api/auth/roles", "Admin – tạo role"],
-        ["POST", "/api/auth/permissions", "Admin – tạo permission"],
-        ["POST", "/api/auth/users/{id}/roles", "Admin – gán role cho user"],
-        ["POST", "/api/auth/roles/{id}/permissions", "Admin – gán permission cho role"],
+        ["GET", "/api/v1/auth/me", "Trả AuthenticatedUser của session hiện tại"],
+        ["POST", "/api/v1/auth/logout", "Revoke refresh, xóa cookie"],
+        ["POST", "/api/v1/auth/password/change", "Đổi mật khẩu (yêu cầu mật khẩu cũ)"],
+        ["GET", "/api/v1/auth/users", "Admin – list user phân trang"],
+        ["PATCH", "/api/v1/auth/users/{id}/lock", "Admin – khóa user"],
+        ["POST", "/api/v1/auth/roles", "Admin – tạo role"],
+        ["POST", "/api/v1/auth/permissions", "Admin – tạo permission"],
+        ["POST", "/api/v1/auth/users/{id}/roles", "Admin – gán role cho user"],
+        ["POST", "/api/v1/auth/roles/{id}/permissions", "Admin – gán permission cho role"],
     ],
     col_widths_cm=[2.0, 6.5, 7.5])
 
@@ -1141,15 +1141,15 @@ add_heading(doc, "6.3. User Profile API", level=2)
 add_table(doc,
     ["Method", "Path", "Mục đích"],
     [
-        ["GET", "/api/user-profiles/me", "Profile của user đang đăng nhập"],
-        ["PATCH", "/api/user-profiles/me", "Update profile (tên, sinh nhật, avatar)"],
-        ["GET", "/api/user-profiles/me/addresses", "Danh sách địa chỉ"],
-        ["POST", "/api/user-profiles/me/addresses", "Thêm địa chỉ"],
-        ["PATCH", "/api/user-profiles/me/addresses/{id}", "Sửa địa chỉ"],
-        ["DELETE", "/api/user-profiles/me/addresses/{id}", "Xóa địa chỉ"],
-        ["POST", "/api/user-profiles/me/addresses/{id}/default", "Đặt làm địa chỉ mặc định"],
-        ["GET", "/api/user-profiles/by-user/{userId}", "(Internal) Lookup profile theo userId"],
-        ["GET", "/api/user-profiles/by-email/{email}", "(Internal) Lookup theo email"],
+        ["GET", "/api/v1/user-profiles/me", "Profile của user đang đăng nhập"],
+        ["PATCH", "/api/v1/user-profiles/me", "Update profile (tên, sinh nhật, avatar)"],
+        ["GET", "/api/v1/user-profiles/me/addresses", "Danh sách địa chỉ"],
+        ["POST", "/api/v1/user-profiles/me/addresses", "Thêm địa chỉ"],
+        ["PATCH", "/api/v1/user-profiles/me/addresses/{id}", "Sửa địa chỉ"],
+        ["DELETE", "/api/v1/user-profiles/me/addresses/{id}", "Xóa địa chỉ"],
+        ["POST", "/api/v1/user-profiles/me/addresses/{id}/default", "Đặt làm địa chỉ mặc định"],
+        ["GET", "/api/v1/user-profiles/by-user/{userId}", "(Internal) Lookup profile theo userId"],
+        ["GET", "/api/v1/user-profiles/by-email/{email}", "(Internal) Lookup theo email"],
     ],
     col_widths_cm=[2.0, 7.0, 7.0])
 
@@ -1157,17 +1157,17 @@ add_heading(doc, "6.4. Catalog API", level=2)
 add_table(doc,
     ["Method", "Path", "Mục đích"],
     [
-        ["GET", "/api/products", "List với cursor + filter (category, brand, price range)"],
-        ["GET", "/api/products/{id}", "Chi tiết product + variants"],
-        ["GET", "/api/products/by-slug/{slug}", "Chi tiết theo slug (SEO)"],
-        ["POST", "/api/products", "Admin – tạo product mới"],
-        ["PATCH", "/api/products/{id}", "Admin – sửa"],
-        ["DELETE", "/api/products/{id}", "Admin – soft-delete"],
-        ["GET", "/api/categories", "Tree danh mục"],
-        ["POST", "/api/categories", "Admin – tạo danh mục"],
-        ["GET", "/api/attrs", "Danh sách attr"],
-        ["POST", "/api/attrs", "Admin – tạo attr"],
-        ["GET", "/api/variants/by-sku/{sku}", "Lookup variant"],
+        ["GET", "/api/v1/products", "List với cursor + filter (category, brand, price range)"],
+        ["GET", "/api/v1/products/{id}", "Chi tiết product + variants"],
+        ["GET", "/api/v1/products/by-slug/{slug}", "Chi tiết theo slug (SEO)"],
+        ["POST", "/api/v1/products", "Admin – tạo product mới"],
+        ["PATCH", "/api/v1/products/{id}", "Admin – sửa"],
+        ["DELETE", "/api/v1/products/{id}", "Admin – soft-delete"],
+        ["GET", "/api/v1/categories", "Tree danh mục"],
+        ["POST", "/api/v1/categories", "Admin – tạo danh mục"],
+        ["GET", "/api/v1/attrs", "Danh sách attr"],
+        ["POST", "/api/v1/attrs", "Admin – tạo attr"],
+        ["GET", "/api/v1/variants/by-sku/{sku}", "Lookup variant"],
     ],
     col_widths_cm=[2.0, 6.5, 7.5])
 
@@ -1175,14 +1175,14 @@ add_heading(doc, "6.5. Inventory API", level=2)
 add_table(doc,
     ["Method", "Path", "Mục đích"],
     [
-        ["POST", "/api/inventory/", "Admin – tạo bản ghi inventory"],
-        ["GET", "/api/inventory/{productId}", "Tồn kho theo productId"],
-        ["GET", "/api/inventory/sku/{sku}", "Tồn kho theo SKU"],
-        ["PATCH", "/api/inventory/sku/{sku}/set-stock", "Admin – set tồn kho mới (yêu cầu reason)"],
-        ["POST", "/api/inventory/reservations", "(Internal) Reserve cho saga"],
-        ["POST", "/api/inventory/reservations/{id}/confirm", "(Internal) Confirm reservation"],
-        ["POST", "/api/inventory/reservations/{id}/release", "(Internal) Release reservation"],
-        ["GET", "/api/inventory/movements", "Audit – list movements"],
+        ["POST", "/api/v1/inventory/", "Admin – tạo bản ghi inventory"],
+        ["GET", "/api/v1/inventory/{productId}", "Tồn kho theo productId"],
+        ["GET", "/api/v1/inventory/sku/{sku}", "Tồn kho theo SKU"],
+        ["PATCH", "/api/v1/inventory/sku/{sku}/set-stock", "Admin – set tồn kho mới (yêu cầu reason)"],
+        ["POST", "/api/v1/inventory/reservations", "(Internal) Reserve cho saga"],
+        ["POST", "/api/v1/inventory/reservations/{id}/confirm", "(Internal) Confirm reservation"],
+        ["POST", "/api/v1/inventory/reservations/{id}/release", "(Internal) Release reservation"],
+        ["GET", "/api/v1/inventory/movements", "Audit – list movements"],
     ],
     col_widths_cm=[2.0, 7.0, 7.0])
 
@@ -1190,11 +1190,11 @@ add_heading(doc, "6.6. Cart API", level=2)
 add_table(doc,
     ["Method", "Path", "Mục đích"],
     [
-        ["GET", "/api/cart", "Cart hiện tại + warnings"],
-        ["POST", "/api/cart/items", "Add or upsert item (X-Idempotency-Key required)"],
-        ["PUT", "/api/cart/items/{variantId}", "Update qty (qty=0 = delete)"],
-        ["DELETE", "/api/cart/items/{variantId}", "Xóa item"],
-        ["DELETE", "/api/cart", "Clear toàn bộ"],
+        ["GET", "/api/v1/cart", "Cart hiện tại + warnings"],
+        ["POST", "/api/v1/cart/items", "Add or upsert item (X-Idempotency-Key required)"],
+        ["PUT", "/api/v1/cart/items/{variantId}", "Update qty (qty=0 = delete)"],
+        ["DELETE", "/api/v1/cart/items/{variantId}", "Xóa item"],
+        ["DELETE", "/api/v1/cart", "Clear toàn bộ"],
     ],
     col_widths_cm=[2.0, 6.5, 7.5])
 
@@ -1202,17 +1202,17 @@ add_heading(doc, "6.7. Order API", level=2)
 add_table(doc,
     ["Method", "Path", "Mục đích"],
     [
-        ["POST", "/api/orders", "Admin – tạo đơn manual với items inline"],
-        ["POST", "/api/orders/from-cart", "Customer – đặt từ giỏ (X-Idempotency-Key required)"],
-        ["GET", "/api/orders/{id}", "Chi tiết (owner hoặc admin)"],
-        ["GET", "/api/orders/my", "Customer – đơn của tôi (cursor)"],
-        ["GET", "/api/orders", "Admin – tất cả đơn (cursor + filter status)"],
-        ["POST", "/api/orders/{id}/cancel", "Customer – hủy đơn ở trạng thái cho phép"],
-        ["POST", "/api/orders/return-requests/{orderId}", "Customer – submit yêu cầu đổi/trả"],
-        ["GET", "/api/orders/return-requests", "Admin – list return requests"],
-        ["POST", "/api/orders/return-requests/{id}/approve", "Admin – approve"],
-        ["POST", "/api/orders/return-requests/{id}/reject", "Admin – reject"],
-        ["POST", "/api/orders/return-requests/{id}/complete", "Admin – mark completed"],
+        ["POST", "/api/v1/orders", "Admin – tạo đơn manual với items inline"],
+        ["POST", "/api/v1/orders/from-cart", "Customer – đặt từ giỏ (X-Idempotency-Key required)"],
+        ["GET", "/api/v1/orders/{id}", "Chi tiết (owner hoặc admin)"],
+        ["GET", "/api/v1/orders/my", "Customer – đơn của tôi (cursor)"],
+        ["GET", "/api/v1/orders", "Admin – tất cả đơn (cursor + filter status)"],
+        ["POST", "/api/v1/orders/{id}/cancel", "Customer – hủy đơn ở trạng thái cho phép"],
+        ["POST", "/api/v1/orders/return-requests/{orderId}", "Customer – submit yêu cầu đổi/trả"],
+        ["GET", "/api/v1/orders/return-requests", "Admin – list return requests"],
+        ["POST", "/api/v1/orders/return-requests/{id}/approve", "Admin – approve"],
+        ["POST", "/api/v1/orders/return-requests/{id}/reject", "Admin – reject"],
+        ["POST", "/api/v1/orders/return-requests/{id}/complete", "Admin – mark completed"],
     ],
     col_widths_cm=[2.0, 7.5, 6.5])
 
@@ -1220,14 +1220,14 @@ add_heading(doc, "6.8. Payment API", level=2)
 add_table(doc,
     ["Method", "Path", "Mục đích"],
     [
-        ["POST", "/api/payments", "(Internal) Order-service tạo Payment PENDING"],
-        ["POST", "/api/payments/sepay/webhook", "Webhook từ SePay – verify HMAC"],
-        ["GET", "/api/payments/{id}", "Chi tiết"],
-        ["GET", "/api/payments/order/{orderId}", "Payment của order"],
-        ["POST", "/api/payments/{id}/confirm", "Admin – manual confirm"],
-        ["POST", "/api/payments/{id}/cancel", "Cancel khi user hủy"],
-        ["POST", "/api/payments/{id}/refund", "Tạo refund request (PENDING)"],
-        ["POST", "/api/payments/{id}/process-refund", "Admin – process refund qua SePay API"],
+        ["POST", "/api/v1/payments", "(Internal) Order-service tạo Payment PENDING"],
+        ["POST", "/api/v1/payments/sepay/webhook", "Webhook từ SePay – verify HMAC"],
+        ["GET", "/api/v1/payments/{id}", "Chi tiết"],
+        ["GET", "/api/v1/payments/order/{orderId}", "Payment của order"],
+        ["POST", "/api/v1/payments/{id}/confirm", "Admin – manual confirm"],
+        ["POST", "/api/v1/payments/{id}/cancel", "Cancel khi user hủy"],
+        ["POST", "/api/v1/payments/{id}/refund", "Tạo refund request (PENDING)"],
+        ["POST", "/api/v1/payments/{id}/process-refund", "Admin – process refund qua SePay API"],
     ],
     col_widths_cm=[2.0, 7.5, 6.5])
 
@@ -1235,11 +1235,11 @@ add_heading(doc, "6.9. Shipping API", level=2)
 add_table(doc,
     ["Method", "Path", "Mục đích"],
     [
-        ["POST", "/api/shipments", "Admin – tạo shipment"],
-        ["POST", "/api/shipments/internal", "(Internal) Order-service tạo sau payment.completed"],
-        ["GET", "/api/shipments/{id}", "Chi tiết"],
-        ["GET", "/api/shipments/order/{orderId}", "Shipment của order"],
-        ["PATCH", "/api/shipments/{id}/status", "Admin – update status"],
+        ["POST", "/api/v1/shipments", "Admin – tạo shipment"],
+        ["POST", "/api/v1/shipments/internal", "(Internal) Order-service tạo sau payment.completed"],
+        ["GET", "/api/v1/shipments/{id}", "Chi tiết"],
+        ["GET", "/api/v1/shipments/order/{orderId}", "Shipment của order"],
+        ["PATCH", "/api/v1/shipments/{id}/status", "Admin – update status"],
         ["GET", "/tracking/{number}", "Public tracking (yêu cầu phone verify)"],
     ],
     col_widths_cm=[2.0, 7.0, 7.0])
@@ -1248,14 +1248,14 @@ add_heading(doc, "6.10. Voucher API", level=2)
 add_table(doc,
     ["Method", "Path", "Mục đích"],
     [
-        ["POST", "/api/vouchers", "Admin – tạo"],
-        ["GET", "/api/vouchers", "List all (admin)"],
-        ["GET", "/api/vouchers/active", "List active (FE hiển thị)"],
-        ["GET", "/api/vouchers/code/{code}", "FE preview voucher (không apply)"],
-        ["POST", "/api/vouchers/validate", "(Internal) Order-service gọi khi checkout"],
-        ["POST", "/api/vouchers/release", "(Internal) Khi order cancelled"],
-        ["PATCH", "/api/vouchers/{id}", "Admin – sửa"],
-        ["DELETE", "/api/vouchers/{id}", "Admin – soft-delete"],
+        ["POST", "/api/v1/vouchers", "Admin – tạo"],
+        ["GET", "/api/v1/vouchers", "List all (admin)"],
+        ["GET", "/api/v1/vouchers/active", "List active (FE hiển thị)"],
+        ["GET", "/api/v1/vouchers/code/{code}", "FE preview voucher (không apply)"],
+        ["POST", "/api/v1/vouchers/validate", "(Internal) Order-service gọi khi checkout"],
+        ["POST", "/api/v1/vouchers/release", "(Internal) Khi order cancelled"],
+        ["PATCH", "/api/v1/vouchers/{id}", "Admin – sửa"],
+        ["DELETE", "/api/v1/vouchers/{id}", "Admin – soft-delete"],
     ],
     col_widths_cm=[2.0, 6.5, 7.5])
 
@@ -1263,14 +1263,14 @@ add_heading(doc, "6.11. Flash Sale API", level=2)
 add_table(doc,
     ["Method", "Path", "Mục đích"],
     [
-        ["POST", "/api/flash-sales", "Admin – tạo flash sale"],
-        ["GET", "/api/flash-sales", "List all"],
-        ["GET", "/api/flash-sales/active", "Đang chạy"],
-        ["GET", "/api/flash-sales/{id}", "Chi tiết"],
-        ["GET", "/api/flash-sales/{id}/availability", "Số lượng còn lại realtime"],
-        ["POST", "/api/flash-sales/{id}/participate", "User – claim slot (atomic Lua)"],
-        ["POST", "/api/flash-sales/{id}/activate", "Admin – activate"],
-        ["POST", "/api/flash-sales/{id}/end", "Admin – kết thúc sớm"],
+        ["POST", "/api/v1/flash-sales", "Admin – tạo flash sale"],
+        ["GET", "/api/v1/flash-sales", "List all"],
+        ["GET", "/api/v1/flash-sales/active", "Đang chạy"],
+        ["GET", "/api/v1/flash-sales/{id}", "Chi tiết"],
+        ["GET", "/api/v1/flash-sales/{id}/availability", "Số lượng còn lại realtime"],
+        ["POST", "/api/v1/flash-sales/{id}/participate", "User – claim slot (atomic Lua)"],
+        ["POST", "/api/v1/flash-sales/{id}/activate", "Admin – activate"],
+        ["POST", "/api/v1/flash-sales/{id}/end", "Admin – kết thúc sớm"],
     ],
     col_widths_cm=[2.0, 7.0, 7.0])
 
@@ -1278,13 +1278,13 @@ add_heading(doc, "6.12. Notification API", level=2)
 add_table(doc,
     ["Method", "Path", "Mục đích"],
     [
-        ["POST", "/api/notifications/send", "Admin – gửi thông báo tới user/group"],
-        ["GET", "/api/notifications/my", "Offset paginated"],
-        ["GET", "/api/notifications/my/feed", "Cursor paginated cho infinite scroll"],
-        ["GET", "/api/notifications/stream", "SSE realtime push (keep-alive 30s)"],
-        ["POST", "/api/notifications/{id}/read", "Mark read individual"],
-        ["POST", "/api/notifications/read-all", "Mark read all"],
-        ["GET", "/api/notifications/unread-count", "Số notification chưa đọc"],
+        ["POST", "/api/v1/notifications/send", "Admin – gửi thông báo tới user/group"],
+        ["GET", "/api/v1/notifications/my", "Offset paginated"],
+        ["GET", "/api/v1/notifications/my/feed", "Cursor paginated cho infinite scroll"],
+        ["GET", "/api/v1/notifications/stream", "SSE realtime push (keep-alive 30s)"],
+        ["POST", "/api/v1/notifications/{id}/read", "Mark read individual"],
+        ["POST", "/api/v1/notifications/read-all", "Mark read all"],
+        ["GET", "/api/v1/notifications/unread-count", "Số notification chưa đọc"],
     ],
     col_widths_cm=[2.0, 7.0, 7.0])
 
@@ -1324,7 +1324,7 @@ add_heading(doc, "7.2. Luồng xử lý request qua API Gateway", level=2)
 add_para(doc, "API Gateway là điểm vào duy nhất, áp dụng các filter (CORS, path routing, trace ID, rate limit). Sau Gateway, mỗi service tự xác thực JWT qua local filter, không cần round-trip ngược về auth-service.")
 add_code(doc, """Client         API Gateway       JWT Filter        Downstream Service
   |                 |                |                     |
-  |--GET /api/xxx ->|                |                     |
+  |--GET /api/v1/xxx ->|                |                     |
   | (Cookie ACCESS) |-- Route match->|                     |
   |                 |-- Add trace ID-|                     |
   |                 |                |-- Extract cookie    |
@@ -1664,7 +1664,7 @@ add_table(doc,
         ["1. Network", "API Gateway", "HTTPS bắt buộc (prod), CORS allowlist, IP allowlist webhook"],
         ["2. Authentication", "Gateway + service", "JWT HS256, cookie HttpOnly + SameSite=Strict"],
         ["3. Authorization", "Service filter + @PreAuthorize", "Role check + permission check granular"],
-        ["4. Rate Limiting", "Gateway", "100 req/phút/IP cho /api/auth/*; 1000 req/phút cho /api/products/*"],
+        ["4. Rate Limiting", "Gateway", "100 req/phút/IP cho /api/v1/auth/*; 1000 req/phút cho /api/v1/products/*"],
         ["5. Input Validation", "Controller DTO", "@Valid, @NotBlank, @Size, @Email, @Pattern"],
         ["6. Business Rule", "Domain layer", "State guard, invariant check trong aggregate"],
         ["7. Idempotency", "Service layer", "Redis key + UNIQUE constraint chống replay"],
@@ -1760,12 +1760,12 @@ add_table_caption(doc, "Bảng 9.6: Cấu hình rate limit qua Gateway")
 add_table(doc,
     ["Pattern", "Giới hạn", "Mục đích"],
     [
-        ["/api/auth/login", "5 req/phút/IP", "Chống brute force mật khẩu"],
-        ["/api/auth/register", "10 req/giờ/IP", "Chống spam đăng ký"],
-        ["/api/auth/*", "100 req/phút/IP", "Chống abuse auth flow"],
-        ["/api/products/*", "1000 req/phút/IP", "Public, cần response nhanh"],
-        ["/api/orders/from-cart", "30 req/phút/user", "Chống multi-click"],
-        ["/api/payments/sepay/webhook", "Không limit nhưng IP allowlist", "Tránh giả mạo"],
+        ["/api/v1/auth/login", "5 req/phút/IP", "Chống brute force mật khẩu"],
+        ["/api/v1/auth/register", "10 req/giờ/IP", "Chống spam đăng ký"],
+        ["/api/v1/auth/*", "100 req/phút/IP", "Chống abuse auth flow"],
+        ["/api/v1/products/*", "1000 req/phút/IP", "Public, cần response nhanh"],
+        ["/api/v1/orders/from-cart", "30 req/phút/user", "Chống multi-click"],
+        ["/api/v1/payments/sepay/webhook", "Không limit nhưng IP allowlist", "Tránh giả mạo"],
         ["Default", "300 req/phút/IP", "Bảo vệ tổng thể"],
     ],
     col_widths_cm=[6.0, 4.5, 5.5])
@@ -1916,7 +1916,7 @@ docker compose up -d
 python3 seed-hieu-luxe.py --wipe   # 25 sản phẩm HIEU
 
 # Bước 4: kiểm tra
-curl http://localhost:8080/api/products | jq '.totalElements'
+curl http://localhost:8080/api/v1/products | jq '.totalElements'
 curl http://localhost:9091/actuator/health""")
 
 add_para(doc, "Thứ tự boot quan trọng:", bold=True)
@@ -2299,32 +2299,32 @@ add_code(doc, """spring:
         - id: auth-public
           uri: lb://AUTH-SERVICE
           predicates:
-            - Path=/api/auth/register,/api/auth/login,/api/auth/refresh
+            - Path=/api/v1/auth/register,/api/v1/auth/login,/api/v1/auth/refresh
 
         - id: auth-protected
           uri: lb://AUTH-SERVICE
           predicates:
-            - Path=/api/auth/**
+            - Path=/api/v1/auth/**
 
         - id: catalog
           uri: lb://CATALOG-SERVICE
           predicates:
-            - Path=/api/products/**,/api/categories/**,/api/attrs/**
+            - Path=/api/v1/products/**,/api/v1/categories/**,/api/v1/attrs/**
 
         - id: cart
           uri: lb://CART-SERVICE
           predicates:
-            - Path=/api/cart/**
+            - Path=/api/v1/cart/**
 
         - id: order
           uri: lb://ORDER-SERVICE
           predicates:
-            - Path=/api/orders/**
+            - Path=/api/v1/orders/**
 
         - id: payment
           uri: lb://PAYMENT-SERVICE
           predicates:
-            - Path=/api/payments/**""")
+            - Path=/api/v1/payments/**""")
 
 add_para(doc, "D.3. Docker Compose hạ tầng (snippet):", bold=True)
 add_code(doc, """version: "3.8"

@@ -47,7 +47,7 @@ RUN apk add --no-cache tini wget && \
 WORKDIR /app
 
 # Copy extracted layers in order of change frequency (least -> most).
-# Each COPY becomes its own layer; deps rarely change so they stay cached.
+# Each COPY become-s its own layer; deps rarely change so they stay cached.
 ARG EXTRACTED=/workspace/auth-service/target/extracted
 COPY --from=builder --chown=spring:spring ${EXTRACTED}/dependencies/         ./
 COPY --from=builder --chown=spring:spring ${EXTRACTED}/spring-boot-loader/   ./

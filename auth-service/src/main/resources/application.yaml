@@ -1,33 +1,24 @@
 spring:
-  # Auto-load .env as properties (Spring Boot 3.1+) — file is optional.
   config:
     import: optional:file:.env[.properties]
   application:
     name: auth-service
-
-  # M1: Virtual threads — Tomcat + async tasks use Project Loom threads, no pool sizing needed.
   threads:
     virtual:
       enabled: true
-
-  # gRPC server — Netty, dedicated port (separate from Tomcat 8081).
   grpc:
     server:
       port: ${GRPC_PORT:9091}
-
-  # ── Redis ──
   data:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
       password: ${REDIS_PASSWORD:}
       connect-timeout: 2000ms
-
-  # ── Kafka ──
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:9092}
     producer:
-      key-serializer:   org.apache.kafka.common.serialization.StringSerializer
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
       acks: all
       properties:
@@ -35,63 +26,48 @@ spring:
         max.in.flight.requests.per.connection: 5
     consumer:
       group-id: auth-service
-      key-deserializer:   org.apache.kafka.common.serialization.StringDeserializer
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       properties:
-        spring.json.trusted.packages: "com.hieu.auth_service.application.events,com.hieu.*"
+        spring.json.trusted.packages: com.hieu.auth_service.application.events,com.hieu.*
     listener:
       missing-topics-fatal: false
-
-  # ── Datasource — defaults target the docker-compose Postgres on host port 5433.
-  # Activate the `h2` profile (-Dspring.profiles.active=h2) to run fully in-memory.
+      concurrency: ${KAFKA_CONCURRENCY:3}
   datasource:
     driver-class-name: ${DB_DRIVER:org.postgresql.Driver}
     url: ${DB_URL:jdbc:postgresql://localhost:5433/authdb}
     username: ${DB_USER:authuser}
     password: ${DB_PASSWORD:authpass}
-
+    hikari:
+      maximum-pool-size: ${DB_POOL_MAX:50}
+      minimum-idle: ${DB_POOL_MIN:10}
+      connection-timeout: 3000
+      max-lifetime: 1800000
+      idle-timeout: 600000
+      leak-detection-threshold: 60000
   jpa:
     database-platform: ${JPA_DIALECT:org.hibernate.dialect.PostgreSQLDialect}
     hibernate:
-      # Flyway owns the schema. Hibernate only validates — catches drift between
-      # JPA entities and real tables in CI. Dev on H2 uses `create-drop` via profile.
       ddl-auto: ${JPA_DDL:validate}
     show-sql: false
     properties:
       hibernate:
         format_sql: true
-
-  # Flyway migrations — enabled by default for Postgres; disabled for local H2 dev.
   flyway:
     enabled: ${FLYWAY_ENABLED:true}
-    locations: classpath:db/migration
+    locations: classpath:db/migrationf
     baseline-on-migrate: true
-
-# gRPC port now lives under spring.grpc.server (merged into the main spring: block above).
-
 server:
   port: ${SERVER_PORT:8081}
-
-# ── JWT configuration (bound to JwtProperties record) ──
+  forward-headers-strategy: framework
 jwt:
-  # C1 (relaxed for local dev): require JWT_SECRET in prod via @Profile guard.
-  # Default value is a 64-char dev-only secret that passes the 32-char minimum check.
-  # In production, override with: export JWT_SECRET=<32+ random chars>
-  # MUST match all other services (api-gateway etc) for JWT signature verification.
   secret: ${JWT_SECRET:change-me-change-me-change-me-change-me-please-32chars}
-  access-expiration-seconds: ${JWT_ACCESS_TTL:900}       # 15 minutes
-  refresh-expiration-days: ${JWT_REFRESH_TTL_DAYS:7}     # 7 days
+  access-expiration-seconds: ${JWT_ACCESS_TTL:900}
+  refresh-expiration-days: ${JWT_REFRESH_TTL_DAYS:7}
   issuer: ${JWT_ISSUER:hieu.com}
-
-# ── Google "Login with Google" — same client ID FE and BE share ──
-# Set this in .env / prod env from the OAuth 2.0 Client (Web) created on
-# console.cloud.google.com. The frontend uses the same value to mint ID tokens
-# via Google Identity Services; the backend uses it to verify the audience.
 google:
   oauth:
     client-id: ${GOOGLE_CLIENT_ID:}
-
-# ── OpenAPI / Swagger ──
 springdoc:
   api-docs:
     path: /v3/api-docs
@@ -100,8 +76,6 @@ springdoc:
     enabled: true
     operations-sorter: method
     tags-sorter: alpha
-
-# ── Actuator ──
 management:
   endpoints:
     web:
@@ -110,9 +84,6 @@ management:
   endpoint:
     health:
       show-details: when-authorized
-
-# ── Eureka service discovery ──
-# URL embeds basic-auth creds so the client registers/fetches without extra config.
 eureka:
   client:
     service-url:
@@ -121,22 +92,24 @@ eureka:
     fetch-registry: true
   instance:
     prefer-ip-address: true
-
-# ── Cookie-based auth ──
-# Browser clients get HttpOnly cookies instead of raw tokens. Set secure=true in prod
-# (requires HTTPS); dev defaults to false so cookies survive plain http://localhost.
 auth:
   cookie:
-    # Default true so prod (HTTPS) is safe by default. Local dev (plain http://localhost)
-    # must explicitly set AUTH_COOKIE_SECURE=false in .env to receive cookies.
     secure: ${AUTH_COOKIE_SECURE:true}
     same-site: ${AUTH_COOKIE_SAME_SITE:Lax}
-
-# ── Logging ──
+rate-limit:
+  login:
+    limit: ${RATE_LIMIT_LOGIN:5}
+    window: ${RATE_LIMIT_LOGIN_WINDOW:1m}
+  register:
+    limit: ${RATE_LIMIT_REGISTER:3}
+    window: ${RATE_LIMIT_REGISTER_WINDOW:1m}
+  whitelist:
+  - 127.0.0.1
+  - 0:0:0:0:0:0:0:1
 logging:
   level:
     com.hieu.auth_service: DEBUG
     org.springframework.security: INFO
     org.hibernate.SQL: WARN
   pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss} %-5level [%thread] %logger{30} - %msg%n"
+    console: '%d{yyyy-MM-dd HH:mm:ss} %-5level [%thread] %logger{30} - %msg%n'

@@ -36,11 +36,11 @@ public class SecurityConfig {
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 // Public
-                .requestMatchers(HttpMethod.GET,  "/api/shipments/tracking/**").permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/shipments/internal").permitAll()
+                .requestMatchers(HttpMethod.GET,  "/api/v1/shipments/tracking/**").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/v1/shipments/internal").permitAll()
                 // Shipping fee quote — checkout uses this before login completes
-                .requestMatchers(HttpMethod.GET,  "/api/shipping/carriers").permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/shipping/calculate-fee").permitAll()
+                .requestMatchers(HttpMethod.GET,  "/api/v1/shipping/carriers").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/v1/shipping/calculate-fee").permitAll()
                 // Docs + ops
                 .requestMatchers(
                     "/actuator/**",

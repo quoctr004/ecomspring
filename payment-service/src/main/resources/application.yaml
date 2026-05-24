@@ -1,16 +1,20 @@
 spring:
-  # Auto-load .env as properties (Spring Boot 3.1+) — file is optional.
   config:
     import: optional:file:.env[.properties]
   application:
     name: payment-service
-
   datasource:
     driver-class-name: ${DB_DRIVER:org.postgresql.Driver}
     url: ${DB_URL:jdbc:postgresql://localhost:5437/paymentdb}
     username: ${DB_USER:paymentuser}
     password: ${DB_PASSWORD:paymentpass}
-
+    hikari:
+      maximum-pool-size: ${DB_POOL_MAX:50}
+      minimum-idle: ${DB_POOL_MIN:10}
+      connection-timeout: 3000
+      max-lifetime: 1800000
+      idle-timeout: 600000
+      leak-detection-threshold: 60000
   jpa:
     database-platform: ${JPA_DIALECT:org.hibernate.dialect.PostgreSQLDialect}
     hibernate:
@@ -19,31 +23,28 @@ spring:
     properties:
       hibernate:
         format_sql: true
-
   flyway:
     enabled: ${FLYWAY_ENABLED:true}
     locations: classpath:db/migration
     baseline-on-migrate: true
-
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:9092}
     producer:
-      key-serializer:   org.apache.kafka.common.serialization.StringSerializer
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
       acks: all
       properties:
         enable.idempotence: true
     listener:
       missing-topics-fatal: false
-
+      concurrency: ${KAFKA_CONCURRENCY:3}
+  threads:
+    virtual:
+      enabled: true
 server:
   port: ${SERVER_PORT:8086}
-
-# JWT verification (shared secret with auth-service)
 jwt:
   secret: ${JWT_SECRET:change-me-change-me-change-me-change-me-please-32chars}
-
-# Eureka
 eureka:
   client:
     service-url:
@@ -52,8 +53,6 @@ eureka:
     fetch-registry: true
   instance:
     prefer-ip-address: true
-
-# SePay
 sepay:
   qr-base-url: https://qr.sepay.vn/img
   bank-code: BIDV
@@ -61,41 +60,31 @@ sepay:
   account-name: TO TRONG HIEU
   webhook:
     api-key: ${SEPAY_WEBHOOK_API_KEY:}
-    # Dev-only escape hatch: bypass Apikey verification on the Sepay webhook. Default
-    # false — set SEPAY_WEBHOOK_ALLOW_INSECURE=true explicitly for local dev only.
-    # Production NEVER accepts unauthenticated webhooks.
     allow-insecure: ${SEPAY_WEBHOOK_ALLOW_INSECURE:false}
-
-# MoMo
 momo:
   partner-code: MOMO_DEMO
   sandbox-base-url: https://test-payment.momo.vn/v2/gateway/pay
   return-url: http://localhost:3000/payment/momo/return
-
 payment:
   momo:
     secret-key: ${MOMO_SECRET_KEY:}
-  # Storefront-facing payment method catalog. Toggle `enabled` to hide a
-  # provider without redeploying the FE. Admin UI can later overlay these
-  # defaults via a DB-backed override table.
   methods:
-    - code: COD
-      name: "Thanh toán khi nhận hàng (COD)"
-      description: "Trả tiền mặt khi nhận hàng"
-      icon: "payments"
-      enabled: true
-    - code: SEPAY
-      name: "Chuyển khoản ngân hàng (SePay)"
-      description: "Quét QR/VietQR — tự xác nhận khi tiền về"
-      icon: "qr_code_2"
-      enabled: true
-    - code: MOMO
-      name: "Ví MoMo"
-      description: "Thanh toán qua ví MoMo"
-      icon: "account_balance_wallet"
-      enabled: true
-
-# OpenAPI
+  - code: COD
+    name: "Thanh to\xE1n khi nh\u1EADn h\xE0ng (COD)"
+    description: "Tr\u1EA3 ti\u1EC1n m\u1EB7t khi nh\u1EADn h\xE0ng"
+    icon: payments
+    enabled: true
+  - code: SEPAY
+    name: "Chuy\u1EC3n kho\u1EA3n ng\xE2n h\xE0ng (SePay)"
+    description: "Qu\xE9t QR/VietQR \u2014 t\u1EF1 x\xE1c nh\u1EADn khi ti\u1EC1n\
+      \ v\u1EC1"
+    icon: qr_code_2
+    enabled: true
+  - code: MOMO
+    name: "V\xED MoMo"
+    description: "Thanh to\xE1n qua v\xED MoMo"
+    icon: account_balance_wallet
+    enabled: true
 springdoc:
   api-docs:
     path: /v3/api-docs
@@ -103,7 +92,6 @@ springdoc:
     path: /swagger-ui.html
     operations-sorter: method
     tags-sorter: alpha
-
 management:
   endpoints:
     web:
@@ -112,12 +100,9 @@ management:
   endpoint:
     health:
       show-details: when-authorized
-
 logging:
   level:
     com.hieu.payment_service: DEBUG
     org.hibernate.SQL: WARN
   pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss} %-5level [%thread] %logger{30} - %msg%n"
-
-# (payment.methods merged into the earlier `payment:` block above)
+    console: '%d{yyyy-MM-dd HH:mm:ss} %-5level [%thread] %logger{30} - %msg%n'

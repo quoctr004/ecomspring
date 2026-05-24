@@ -25,7 +25,7 @@ import java.util.Map;
  * </ul>
  */
 @RestController
-@RequestMapping("/api/banners")
+@RequestMapping("/api/v1/banners")
 @RequiredArgsConstructor
 public class HeroBannerController {
 

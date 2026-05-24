@@ -1,20 +1,23 @@
 spring:
-  # Auto-load .env as properties (Spring Boot 3.1+) — file is optional.
   config:
     import: optional:file:.env[.properties]
   application:
     name: user-profile-service
-
   grpc:
     server:
       port: ${GRPC_PORT:9099}
-
   datasource:
     driver-class-name: ${DB_DRIVER:org.postgresql.Driver}
     url: ${DB_URL:jdbc:postgresql://localhost:5442/userprofiledb}
     username: ${DB_USER:userprofileuser}
     password: ${DB_PASSWORD:userprofilepass}
-
+    hikari:
+      maximum-pool-size: ${DB_POOL_MAX:50}
+      minimum-idle: ${DB_POOL_MIN:10}
+      connection-timeout: 3000
+      max-lifetime: 1800000
+      idle-timeout: 600000
+      leak-detection-threshold: 60000
   jpa:
     database-platform: ${JPA_DIALECT:org.hibernate.dialect.PostgreSQLDialect}
     hibernate:
@@ -23,12 +26,10 @@ spring:
     properties:
       hibernate:
         format_sql: true
-
   flyway:
     enabled: ${FLYWAY_ENABLED:true}
     locations: classpath:db/migration
     baseline-on-migrate: true
-
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:9092}
     consumer:
@@ -39,16 +40,17 @@ spring:
       properties:
         spring.json.use.type.headers: false
         spring.json.value.default.type: java.util.HashMap
-        spring.json.trusted.packages: "com.hieu.*"
+        spring.json.trusted.packages: com.hieu.*
     listener:
       missing-topics-fatal: false
-
+      concurrency: ${KAFKA_CONCURRENCY:3}
+  threads:
+    virtual:
+      enabled: true
 server:
   port: ${SERVER_PORT:8091}
-
 jwt:
   secret: ${JWT_SECRET:change-me-change-me-change-me-change-me-please-32chars}
-
 eureka:
   client:
     service-url:
@@ -57,7 +59,6 @@ eureka:
     fetch-registry: true
   instance:
     prefer-ip-address: true
-
 springdoc:
   api-docs:
     path: /v3/api-docs
@@ -65,7 +66,6 @@ springdoc:
     path: /swagger-ui.html
     operations-sorter: method
     tags-sorter: alpha
-
 management:
   endpoints:
     web:
@@ -74,10 +74,9 @@ management:
   endpoint:
     health:
       show-details: when-authorized
-
 logging:
   level:
     com.hieu.user_profile_service: DEBUG
     org.hibernate.SQL: WARN
   pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss} %-5level [%thread] %logger{30} - %msg%n"
+    console: '%d{yyyy-MM-dd HH:mm:ss} %-5level [%thread] %logger{30} - %msg%n'

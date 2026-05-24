@@ -19,7 +19,7 @@ import java.util.List;
 /** REST endpoints for shipment management. */
 @Slf4j
 @RestController
-@RequestMapping("/api/shipments")
+@RequestMapping("/api/v1/shipments")
 @RequiredArgsConstructor
 public class ShipmentController {
 

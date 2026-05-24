@@ -1,3 +1,6 @@
 spring:
   application:
     name: review-service
+  threads:
+    virtual:
+      enabled: true

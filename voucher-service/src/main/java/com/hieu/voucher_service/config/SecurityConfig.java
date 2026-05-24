@@ -32,14 +32,14 @@ public class SecurityConfig {
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 // Public endpoints — no auth required
-                .requestMatchers(HttpMethod.GET, "/api/vouchers/active").permitAll()
-                .requestMatchers(HttpMethod.GET, "/api/vouchers/{id}").permitAll()
-                .requestMatchers(HttpMethod.GET, "/api/vouchers/code/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/v1/vouchers/active").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/v1/vouchers/{id}").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/v1/vouchers/code/**").permitAll()
                 // validate + release are internal saga calls — require authenticated JWT
                 // so external clients can't forge release(code, orderId) to abuse vouchers
                 // by un-spending them. Order-service forwards the user's JWT.
-                .requestMatchers(HttpMethod.POST, "/api/vouchers/validate").authenticated()
-                .requestMatchers(HttpMethod.POST, "/api/vouchers/release").authenticated()
+                .requestMatchers(HttpMethod.POST, "/api/v1/vouchers/validate").authenticated()
+                .requestMatchers(HttpMethod.POST, "/api/v1/vouchers/release").authenticated()
                 .requestMatchers(
                     "/v3/api-docs/**",
                     "/swagger-ui/**",

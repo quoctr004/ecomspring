@@ -3,87 +3,66 @@ package com.hieu.shipping_service.service;
 import com.hieu.shipping_service.config.GhtkProperties;
 import com.hieu.shipping_service.dto.CalculateFeeRequest;
 import com.hieu.shipping_service.dto.CalculateFeeResponse;
+import com.hieu.shipping_service.rest.client.GhtkFeignClient;
+import feign.FeignException;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
-import org.springframework.web.reactive.function.client.WebClient;
-import org.springframework.web.util.DefaultUriBuilderFactory;
-import reactor.core.publisher.Mono;
 
-import java.time.Duration;
 import java.util.Map;
 
 /**
- * Thin wrapper over GHTK's {@code /services/shipment/fee} endpoint.
+ * Domain-shaped facade over {@link GhtkFeignClient}.
  *
  * <p>Falls back to a local estimator when the token is missing or the call fails,
  * so the checkout page never breaks even if GHTK is down. The fallback uses a
  * fixed per-kg rate scheme — coarse, but deterministic for dev/staging.
  *
- * <p>GHTK quirks:
+ * <p>GHTK quirks (handled by the underlying Feign client):
  * <ul>
- *   <li>Authorization header is just the raw token (no "Bearer" prefix).</li>
- *   <li>weight is in <b>grams</b> as integer.</li>
+ *   <li>{@code Token} header is the raw API key (no {@code Bearer} prefix).</li>
+ *   <li>{@code weight} is in <b>grams</b>, integer.</li>
  *   <li>Province / district names must match GHTK's directory (Vietnamese, with
- *       diacritics) — bad names return {@code success=false, message="..."}.</li>
+ *       diacritics) — bad names return {@code success=false, message="..."} which
+ *       drops into the local fallback.</li>
  * </ul>
  */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class GhtkClient {
 
-    private static final Duration TIMEOUT = Duration.ofSeconds(4);
+    private static final long  FALLBACK_BASE_VND          = 22_000L;
+    private static final long  FALLBACK_PER_EXTRA_KG_VND  = 5_000L;
+    private static final long  FALLBACK_LONG_HAUL_VND     = 18_000L;
+    private static final long  FALLBACK_SAME_HOURS        = 24L;
+    private static final long  FALLBACK_LONG_HOURS        = 72L;
+    private static final String DELIVER_OPTION_NONE       = "none";
 
-    private final WebClient webClient;
+    private final GhtkFeignClient ghtk;
     private final GhtkProperties props;
-
-    public GhtkClient(GhtkProperties props) {
-        this.props = props;
-        // URI_COMPONENT: percent-encode every component (path/query value) so
-        // Vietnamese diacritics + spaces survive without manual URLEncoder calls.
-        var factory = new DefaultUriBuilderFactory(props.baseUrl());
-        factory.setEncodingMode(DefaultUriBuilderFactory.EncodingMode.URI_COMPONENT);
-        this.webClient = WebClient.builder()
-                .uriBuilderFactory(factory)
-                .build();
-    }
 
     public CalculateFeeResponse calculateFee(CalculateFeeRequest req) {
         if (props.token() == null || props.token().isBlank()) {
             log.warn("GHTK token missing — using local fallback estimator");
             return localFallback(req);
         }
+
+        String transport = (req.transport() == null) ? props.transport() : req.transport();
         try {
-            String transport = req.transport() == null ? props.transport() : req.transport();
-            @SuppressWarnings("unchecked")
-            Map<String, Object> resp = webClient.get()
-                    .uri(b -> b.path("/services/shipment/fee")
-                            .queryParam("pick_province", props.pick().province())
-                            .queryParam("pick_district", props.pick().district())
-                            .queryParam("pick_ward",     props.pick().ward())
-                            .queryParam("pick_address",  props.pick().address())
-                            .queryParam("province",      req.province())
-                            .queryParam("district",      req.district())
-                            .queryParam("ward",          req.ward())
-                            .queryParam("address",       req.address())
-                            .queryParam("weight",        req.weightGrams())
-                            .queryParam("value",         req.totalValue())
-                            .queryParam("transport",     transport)
-                            .queryParam("deliver_option","none")
-                            .build())
-                    .header("Token", props.token())
-                    .retrieve()
-                    .bodyToMono(Map.class)
-                    .timeout(TIMEOUT)
-                    .onErrorResume(e -> {
-                        log.warn("GHTK fee call failed: {}", e.getMessage());
-                        return Mono.empty();
-                    })
-                    .block();
+            Map<String, Object> resp = ghtk.calculateFee(
+                    props.token(),
+                    props.pick().province(), props.pick().district(),
+                    props.pick().ward(),     props.pick().address(),
+                    req.province(), req.district(), req.ward(), req.address(),
+                    req.weightGrams(), req.totalValue(),
+                    transport, DELIVER_OPTION_NONE);
 
             if (resp == null || !Boolean.TRUE.equals(resp.get("success"))) {
-                log.warn("GHTK fee returned unsuccess: {}", resp);
+                log.warn("GHTK fee returned unsuccess — using fallback: {}", resp);
                 return localFallback(req);
             }
+
             @SuppressWarnings("unchecked")
             Map<String, Object> fee = (Map<String, Object>) resp.get("fee");
             if (fee == null) return localFallback(req);
@@ -93,6 +72,9 @@ public class GhtkClient {
             long deliveryHrs = num(fee.get("delivery"));
             return CalculateFeeResponse.ghtk(total, insurance, deliveryHrs);
 
+        } catch (FeignException e) {
+            log.warn("GHTK call failed (HTTP {}) — falling back: {}", e.status(), e.getMessage());
+            return localFallback(req);
         } catch (Exception e) {
             log.warn("GHTK call threw — falling back. error={}", e.getMessage());
             return localFallback(req);
@@ -106,24 +88,30 @@ public class GhtkClient {
      * something obviously wrong even when the real API is down.
      */
     private CalculateFeeResponse localFallback(CalculateFeeRequest req) {
-        long base = 22_000;
         int kg = Math.max(1, (int) Math.ceil(req.weightGrams() / 1000.0));
-        long perKg = (kg - 1) * 5_000L;
-        long surcharge = sameProvince(req.province()) ? 0L : 18_000L;
-        long total = base + perKg + surcharge;
-        long hours = sameProvince(req.province()) ? 24 : 72;
+        long perKg = (kg - 1) * FALLBACK_PER_EXTRA_KG_VND;
+        boolean intracity = sameProvince(req.province());
+        long surcharge = intracity ? 0L : FALLBACK_LONG_HAUL_VND;
+        long total = FALLBACK_BASE_VND + perKg + surcharge;
+        long hours = intracity ? FALLBACK_SAME_HOURS : FALLBACK_LONG_HOURS;
         return CalculateFeeResponse.fallback(total, hours);
     }
 
     private boolean sameProvince(String province) {
         return province != null && normalize(province).equals(normalize(props.pick().province()));
     }
+
     private static String normalize(String s) {
-        return s == null ? "" : s.trim().toLowerCase().replace("tỉnh ", "").replace("thành phố ", "");
+        return (s == null) ? "" : s.trim().toLowerCase()
+                .replace("tỉnh ", "")
+                .replace("thành phố ", "");
     }
+
     private static long num(Object o) {
         if (o instanceof Number n) return n.longValue();
-        if (o instanceof String s) try { return Long.parseLong(s); } catch (NumberFormatException ignored) {}
+        if (o instanceof String s) {
+            try { return Long.parseLong(s); } catch (NumberFormatException ignored) { /* fall through */ }
+        }
         return 0L;
     }
 }

@@ -1,0 +1,121 @@
+# Prometheus scrape config for the ecommerce monorepo.
+#
+# Services run on the HOST (mvn spring-boot:run) — scrape via host.docker.internal.
+# When services move into containers, switch the `targets` to <service-name>:<port>.
+#
+# Each Spring Boot service exposes /actuator/prometheus via
+#   management.endpoints.web.exposure.include=prometheus
+# already configured in every application.yaml.
+
+global:
+  scrape_interval: 15s            # scrape every 15s (default 1m is too slow for alert latency)
+  evaluation_interval: 15s        # how often alert rules are evaluated
+  external_labels:
+    cluster: ecommerce-dev
+    env: ${ENV:-dev}
+
+# Load alert rules from sibling dir (mounted ro at /etc/prometheus/alerts).
+rule_files:
+  - /etc/prometheus/alerts/*.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
+
+scrape_configs:
+  # Prometheus itself — sanity check.
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Each Spring Boot service. job_name = service name, used as `job` label in queries.
+  - job_name: 'eureka-server'
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['host.docker.internal:8761']
+        labels: { service: eureka-server }
+
+  - job_name: 'api-gateway'
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['host.docker.internal:8080']
+        labels: { service: api-gateway }
+
+  - job_name: 'auth-service'
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['host.docker.internal:8081']
+        labels: { service: auth-service }
+
+  - job_name: 'catalog-service'
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['host.docker.internal:8083']
+        labels: { service: catalog-service }
+
+  - job_name: 'cart-service'
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['host.docker.internal:8084']
+        labels: { service: cart-service }
+
+  - job_name: 'order-service'
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['host.docker.internal:8085']
+        labels: { service: order-service }
+
+  - job_name: 'payment-service'
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['host.docker.internal:8086']
+        labels: { service: payment-service }
+
+  - job_name: 'shipping-service'
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['host.docker.internal:8087']
+        labels: { service: shipping-service }
+
+  - job_name: 'inventory-service'
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['host.docker.internal:8088']
+        labels: { service: inventory-service }
+
+  - job_name: 'flash-sale-service'
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['host.docker.internal:8089']
+        labels: { service: flash-sale-service }
+
+  - job_name: 'notification-service'
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['host.docker.internal:8090']
+        labels: { service: notification-service }
+
+  - job_name: 'user-profile-service'
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['host.docker.internal:8091']
+        labels: { service: user-profile-service }
+
+  - job_name: 'search-service'
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['host.docker.internal:8092']
+        labels: { service: search-service }
+
+  - job_name: 'voucher-service'
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['host.docker.internal:8094']
+        labels: { service: voucher-service }
+
+  - job_name: 'analytics-service'
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['host.docker.internal:8095']
+        labels: { service: analytics-service }

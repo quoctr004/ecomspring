@@ -88,10 +88,10 @@ public class SecurityConfig {
                         .dispatcherTypeMatchers(jakarta.servlet.DispatcherType.ERROR).permitAll()
                         // Public auth endpoints
                         .requestMatchers(HttpMethod.POST,
-                                "/api/auth/login",
-                                "/api/auth/register",
-                                "/api/auth/google",
-                                "/api/auth/refresh").permitAll()
+                                "/api/v1/auth/login",
+                                "/api/v1/auth/register",
+                                "/api/v1/auth/google",
+                                "/api/v1/auth/refresh").permitAll()
                         // C2: Only health+info are public; all other actuator endpoints require ROLE_ADMIN.
                         .requestMatchers("/actuator/health", "/actuator/info").permitAll()
                         .requestMatchers("/actuator/**").hasAuthority("ROLE_ADMIN")

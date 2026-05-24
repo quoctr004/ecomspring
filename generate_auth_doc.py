@@ -791,7 +791,7 @@ add_para(doc,
     'KHÔNG có business logic — đó là việc của handler.')
 
 add_code(doc, """@RestController
-@RequestMapping("/api/auth")
+@RequestMapping("/api/v1/auth")
 @RequiredArgsConstructor
 public class AuthController {
 
@@ -811,13 +811,13 @@ add_para(doc, 'Endpoints chính:', bold=True)
 add_table(doc,
     headers=['HTTP Method', 'Path', 'Mục đích', 'Public?'],
     rows=[
-        ['POST', '/api/auth/register', 'Đăng ký user mới', 'Yes'],
-        ['POST', '/api/auth/login', 'Đăng nhập username/email + password', 'Yes'],
-        ['POST', '/api/auth/refresh', 'Xoay vòng refresh token', 'Yes'],
-        ['POST', '/api/auth/logout', 'Đăng xuất, blacklist access token', 'Auth required'],
-        ['POST', '/api/auth/change-password', 'Đổi mật khẩu, bump tokenVersion', 'Auth required'],
-        ['GET', '/api/auth/me', 'Thông tin user hiện tại', 'Auth required'],
-        ['GET', '/api/users/...', 'Quản lý user (list, view, update)', 'Auth + role'],
+        ['POST', '/api/v1/auth/register', 'Đăng ký user mới', 'Yes'],
+        ['POST', '/api/v1/auth/login', 'Đăng nhập username/email + password', 'Yes'],
+        ['POST', '/api/v1/auth/refresh', 'Xoay vòng refresh token', 'Yes'],
+        ['POST', '/api/v1/auth/logout', 'Đăng xuất, blacklist access token', 'Auth required'],
+        ['POST', '/api/v1/auth/change-password', 'Đổi mật khẩu, bump tokenVersion', 'Auth required'],
+        ['GET', '/api/v1/auth/me', 'Thông tin user hiện tại', 'Auth required'],
+        ['GET', '/api/v1/users/...', 'Quản lý user (list, view, update)', 'Auth + role'],
     ],
     col_widths=[2.5, 4.5, 6, 3])
 
@@ -1036,7 +1036,7 @@ doc.add_page_break()
 add_heading(doc, '9. Luồng nghiệp vụ chi tiết', level=1)
 
 add_heading(doc, '9.1 Luồng Register (đăng ký)', level=2)
-add_code(doc, """┌─ HTTP POST /api/auth/register
+add_code(doc, """┌─ HTTP POST /api/v1/auth/register
 │  Body: {username, email, password, firstName, lastName}
 │
 ├→ AuthController.register()
@@ -1073,7 +1073,7 @@ add_code(doc, """┌─ HTTP POST /api/auth/register
 └→ 200 OK + body {accessToken, refreshToken, user: {...}}""")
 
 add_heading(doc, '9.2 Luồng Login', level=2)
-add_code(doc, """┌─ HTTP POST /api/auth/login {usernameOrEmail, password}
+add_code(doc, """┌─ HTTP POST /api/v1/auth/login {usernameOrEmail, password}
 ├→ LoginHandler.handle(cmd)
 │  ├→ lookup(usernameOrEmail) → user (hoặc throw InvalidCredentials)
 │  ├→ user.authenticate(rawPwd, encoder)
@@ -1092,7 +1092,7 @@ Timing safety: Lookup failure VÀ password mismatch đều throw cùng InvalidCr
 → attacker không phân biệt được "username không tồn tại" vs "password sai" qua timing.""")
 
 add_heading(doc, '9.3 Luồng Refresh Token (Rotation + Family Revocation)', level=2)
-add_code(doc, """┌─ HTTP POST /api/auth/refresh (refresh token đọc từ cookie)
+add_code(doc, """┌─ HTTP POST /api/v1/auth/refresh (refresh token đọc từ cookie)
 ├→ RefreshTokenHandler.handle(cmd)
 │  ├→ refreshTokenRepository.findByTokenValueForUpdate(value)  ← SELECT FOR UPDATE
 │  │   → presented token (hoặc throw)
@@ -1124,7 +1124,7 @@ KEY INSIGHT: pessimistic lock đảm bảo nếu 2 request refresh đồng thờ
 - Request 2: chờ lock → thấy old đã revoked → trigger reuse detection → revoke family""")
 
 add_heading(doc, '9.4 Luồng Logout', level=2)
-add_code(doc, """┌─ HTTP POST /api/auth/logout (auth required)
+add_code(doc, """┌─ HTTP POST /api/v1/auth/logout (auth required)
 ├→ Đọc accessToken từ cookie/header
 ├→ Đọc refreshToken từ cookie
 │
@@ -1140,7 +1140,7 @@ add_code(doc, """┌─ HTTP POST /api/auth/logout (auth required)
 └→ 204 No Content""")
 
 add_heading(doc, '9.5 Luồng Change Password', level=2)
-add_code(doc, """┌─ HTTP POST /api/auth/change-password (auth required)
+add_code(doc, """┌─ HTTP POST /api/v1/auth/change-password (auth required)
 │  Body: {oldPassword, newPassword}
 │
 ├→ AuthController: parse current access token để lấy jti+exp
