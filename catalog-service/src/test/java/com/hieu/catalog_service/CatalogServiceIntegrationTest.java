@@ -10,20 +10,10 @@ import com.hieu.catalog_service.domain.exception.VariantSkuAlreadyExistsExceptio
 import com.hieu.catalog_service.domain.model.product.valueobject.ProductId;
 import com.hieu.catalog_service.domain.model.product.valueobject.ProductStatus;
 import com.hieu.catalog_service.domain.repository.ProductRepository;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
-import org.springframework.test.context.TestPropertySource;
-import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.math.BigDecimal;
-import java.util.ArrayList;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -31,42 +21,14 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Full-stack integration tests for catalog-service.
- * Containers are shared (static) across all tests for speed.
+ *
+ * <p>Runs against the shared Postgres + Redis + Kafka containers provided by
+ * {@link AbstractIntegrationTest} (singleton pattern, started once per JVM). Domain
+ * events are published best-effort to the real Kafka broker — no need to stub the
+ * broker out, which previously blocked each commit for {@code max.block.ms} and
+ * flooded the log with admin-client reconnect attempts.
  */
-@SpringBootTest
-@Testcontainers
-@TestPropertySource(properties = {
-        "eureka.client.enabled=false",
-        "spring.cloud.discovery.enabled=false",
-        "spring.grpc.server.port=0"
-})
-class CatalogServiceIntegrationTest {
-
-    @Container
-    static final PostgreSQLContainer<?> postgres =
-            new PostgreSQLContainer<>("postgres:16-alpine")
-                    .withDatabaseName("catalogdb")
-                    .withUsername("cataloguser")
-                    .withPassword("catalogpass");
-
-    @SuppressWarnings("resource")
-    @Container
-    static final GenericContainer<?> redis =
-            new GenericContainer<>("redis:7-alpine")
-                    .withExposedPorts(6379);
-
-    @DynamicPropertySource
-    static void overrideProperties(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", postgres::getJdbcUrl);
-        registry.add("spring.datasource.username", postgres::getUsername);
-        registry.add("spring.datasource.password", postgres::getPassword);
-        registry.add("spring.data.redis.host", redis::getHost);
-        registry.add("spring.data.redis.port", () -> redis.getMappedPort(6379));
-        // Disable Kafka in catalog-service tests — events are AFTER_COMMIT best-effort
-        registry.add("spring.kafka.bootstrap-servers", () -> "localhost:9999");
-        registry.add("spring.autoconfigure.exclude",
-                () -> "org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration");
-    }
+class CatalogServiceIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired
     CreateProductHandler createProductHandler;

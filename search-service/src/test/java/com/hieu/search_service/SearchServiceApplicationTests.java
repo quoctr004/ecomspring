@@ -1,24 +1,22 @@
 package com.hieu.search_service;
 
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.ActiveProfiles;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE,
-        properties = {
-                "spring.elasticsearch.uris=http://localhost:9200",
-                "spring.autoconfigure.exclude=" +
-                        "org.springframework.boot.autoconfigure.elasticsearch.ElasticsearchClientAutoConfiguration," +
-                        "org.springframework.boot.autoconfigure.data.elasticsearch.ElasticsearchRepositoriesAutoConfiguration," +
-                        "org.springframework.boot.autoconfigure.data.elasticsearch.ElasticsearchDataAutoConfiguration," +
-                        "org.springframework.kafka.annotation.EnableKafka," +
-                        "org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration"
-        })
-@ActiveProfiles("test")
-class SearchServiceApplicationTests {
+/**
+ * Boots the full application context. Extends {@link AbstractIntegrationTest} so the
+ * context starts against real Elasticsearch + Kafka (Testcontainers) under the
+ * {@code test} profile.
+ *
+ * <p>The previous version tried to switch infra off via
+ * {@code spring.autoconfigure.exclude}, but that list included
+ * {@code org.springframework.kafka.annotation.EnableKafka} — an annotation, not an
+ * auto-configuration class — which Spring Boot rejects ("could not be excluded because
+ * they are not auto-configuration classes"). Running against the shared containers is
+ * both valid and a truer smoke test.
+ */
+class SearchServiceApplicationTests extends AbstractIntegrationTest {
 
     @Test
     void contextLoads() {
-        // Context smoke test — Elasticsearch + Kafka excluded to avoid infra deps
     }
 }

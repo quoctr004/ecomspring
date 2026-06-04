@@ -35,7 +35,7 @@ class OrderEventConsumerIT extends AbstractIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        notificationRepository.deleteAll();
+        notificationRepository.deleteAll().block();
         when(emailResolver.lookupEmail(anyString())).thenReturn(Optional.empty());
     }
 
@@ -60,9 +60,10 @@ class OrderEventConsumerIT extends AbstractIntegrationTest {
                 .untilAsserted(() -> {
                     var notifications = notificationRepository
                             .findByUserIdOrderByCreatedAtDescIdDesc(userId,
-                                    org.springframework.data.domain.PageRequest.of(0, 10));
-                    assertThat(notifications.getContent()).isNotEmpty();
-                    assertThat(notifications.getContent())
+                                    org.springframework.data.domain.PageRequest.of(0, 10))
+                            .collectList().block();
+                    assertThat(notifications).isNotEmpty();
+                    assertThat(notifications)
                             .anyMatch(n -> "IN_APP".equals(n.getType())
                                     && "ORDER".equals(n.getReferenceType())
                                     && orderNumber.equals(n.getReferenceId()));
@@ -82,14 +83,15 @@ class OrderEventConsumerIT extends AbstractIntegrationTest {
         await().atMost(Duration.ofSeconds(15))
                 .pollInterval(Duration.ofMillis(500))
                 .untilAsserted(() -> {
-                    long count = notificationRepository.count();
+                    long count = notificationRepository.count().block();
                     // The unique index on (user_id, reference_type, reference_id, type)
                     // ensures only 1 IN_APP notification is persisted
                     assertThat(count).isEqualTo(1);
                     assertThat(notificationRepository
                             .findByUserIdAndReferenceTypeAndReferenceIdAndType(
-                                    userId, "ORDER", orderNumber, "IN_APP"))
-                            .isPresent();
+                                    userId, "ORDER", orderNumber, "IN_APP")
+                            .block())
+                            .isNotNull();
                 });
     }
 }

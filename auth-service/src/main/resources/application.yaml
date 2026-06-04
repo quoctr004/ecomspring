@@ -55,7 +55,7 @@ spring:
         format_sql: true
   flyway:
     enabled: ${FLYWAY_ENABLED:true}
-    locations: classpath:db/migrationf
+    locations: classpath:db/migration
     baseline-on-migrate: true
 server:
   port: ${SERVER_PORT:8081}

@@ -11,6 +11,7 @@ import com.hieu.catalog_service.infrastructure.persistence.mapper.ProductJpaMapp
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.Collections;
@@ -27,12 +28,18 @@ import java.util.Optional;
  */
 @Repository
 @RequiredArgsConstructor
+// Reads map JPA entities → domain objects, which touches lazily-loaded collections
+// (variant.attrs). Keep a session open across the whole adapter method so that mapping
+// happens inside the persistence context — direct callers (e.g. tests) don't otherwise
+// supply a surrounding transaction, which previously caused LazyInitializationException.
+@Transactional(readOnly = true)
 public class ProductRepositoryImpl implements ProductRepository {
 
     private final ProductJpaRepository jpa;
     private final ProductJpaMapper mapper;
 
     @Override
+    @Transactional
     public Product save(Product product) {
         ProductJpaEntity existing = product.getId() != null
             ? jpa.findByIdWithVariants(product.getId().value()).orElse(null)
@@ -116,6 +123,7 @@ public class ProductRepositoryImpl implements ProductRepository {
     }
 
     @Override
+    @Transactional
     public void delete(Product product) {
         if (product.getId() != null) jpa.deleteById(product.getId().value());
     }

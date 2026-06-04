@@ -113,6 +113,18 @@ management:
   endpoint:
     health:
       show-details: when-authorized
+  # ── Distributed tracing (Micrometer + Zipkin) ──
+  # 100% sampling in dev for visibility; reduce to 0.1 (10%) in prod via
+  # MANAGEMENT_TRACING_SAMPLING_PROBABILITY env var. Spans flow through the
+  # saga (HTTP request → Feign payment → Kafka event → consumer) without
+  # extra instrumentation.
+  tracing:
+    sampling:
+      probability: ${MANAGEMENT_TRACING_SAMPLING_PROBABILITY:1.0}
+    enabled: true
+  zipkin:
+    tracing:
+      endpoint: ${ZIPKIN_URL:http://localhost:9411/api/v2/spans}
 logging:
   level:
     com.hieu.order_service: DEBUG
@@ -181,17 +193,3 @@ resilience4j:
       PaymentClient:
         baseConfig: default
         timeoutDuration: 10s              # PSP may need longer
-
-# ── Distributed tracing (Micrometer + Zipkin) ──
-# 100% sampling in dev for visibility; reduce to 0.1 (10%) in prod via
-# MANAGEMENT_TRACING_SAMPLING_PROBABILITY env var. Spans flow through the
-# saga (HTTP request → Feign payment → Kafka event → consumer) without
-# extra instrumentation.
-management:
-  tracing:
-    sampling:
-      probability: ${MANAGEMENT_TRACING_SAMPLING_PROBABILITY:1.0}
-    enabled: true
-  zipkin:
-    tracing:
-      endpoint: ${ZIPKIN_URL:http://localhost:9411/api/v2/spans}

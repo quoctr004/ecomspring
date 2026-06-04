@@ -120,9 +120,11 @@ public final class RefreshToken extends AggregateRoot {
 
     public boolean isValid()          { return !revoked && !expiry.isExpired(); }
     public boolean isRevoked()        { return revoked; }
-    // C4: Normal rotation re-presentation must NOT trigger family revocation — only truly
-    // suspicious reasons (REUSE_DETECTED, FAMILY_REVOKED, etc.) indicate theft.
-    public boolean isReuseAttempt()   { return revoked && reason != RevokedReason.NORMAL; }
+    // Re-presenting ANY already-revoked token at rotation time is the theft signal in the
+    // rotation pattern: a legitimate client only ever holds the latest (non-revoked) token,
+    // so a revoked one resurfacing — including one revoked by NORMAL rotation — means it was
+    // captured and replayed. TokenDomainService cascades a family revocation in response.
+    public boolean isReuseAttempt()   { return revoked; }
     public boolean belongsTo(UserId u){ return userId.equals(u); }
     public boolean willExpireSoon(long seconds) { return expiry.willExpireWithin(seconds); }
 

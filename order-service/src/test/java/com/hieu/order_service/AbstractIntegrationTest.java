@@ -12,8 +12,6 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
 import org.testcontainers.containers.KafkaContainer;
 import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
 /**
@@ -23,7 +21,6 @@ import org.testcontainers.utility.DockerImageName;
  */
 @SpringBootTest
 @ActiveProfiles("test")
-@Testcontainers
 @TestPropertySource(properties = {
         "eureka.client.enabled=false",
         "spring.cloud.discovery.enabled=false",
@@ -32,23 +29,26 @@ import org.testcontainers.utility.DockerImageName;
 })
 public abstract class AbstractIntegrationTest {
 
-    @Container
     static final PostgreSQLContainer<?> POSTGRES =
             new PostgreSQLContainer<>(DockerImageName.parse("postgres:16-alpine"))
                     .withDatabaseName("orderdb")
                     .withUsername("orderuser")
-                    .withPassword("orderpass")
-                    .withReuse(true);
+                    .withPassword("orderpass");
 
-    @Container
     static final RedisContainer REDIS =
-            new RedisContainer(DockerImageName.parse("redis:7-alpine"))
-                    .withReuse(true);
+            new RedisContainer(DockerImageName.parse("redis:7-alpine"));
 
-    @Container
     static final KafkaContainer KAFKA =
-            new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:7.5.0"))
-                    .withReuse(true);
+            new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:7.5.0"));
+
+    static {
+        // Singleton lifecycle: start once per JVM, shared across all IT classes + the cached
+        // Spring context. No @Testcontainers/@Container — that stops static containers after
+        // the first class, breaking sibling classes that reuse the cached context. Ryuk reaps.
+        POSTGRES.start();
+        REDIS.start();
+        KAFKA.start();
+    }
 
     @DynamicPropertySource
     static void registerProperties(DynamicPropertyRegistry registry) {

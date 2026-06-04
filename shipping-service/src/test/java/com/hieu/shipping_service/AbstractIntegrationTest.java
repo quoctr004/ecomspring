@@ -7,8 +7,6 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.KafkaContainer;
 import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
 /**
@@ -17,22 +15,23 @@ import org.testcontainers.utility.DockerImageName;
  */
 @SpringBootTest
 @ActiveProfiles("test")
-@Testcontainers
 @ExtendWith(org.springframework.test.context.junit.jupiter.SpringExtension.class)
 public abstract class AbstractIntegrationTest {
 
-    @Container
     static final PostgreSQLContainer<?> POSTGRES =
             new PostgreSQLContainer<>(DockerImageName.parse("postgres:16-alpine"))
                     .withDatabaseName("shippingdb")
                     .withUsername("shippinguser")
-                    .withPassword("shippingpass")
-                    .withReuse(true);
+                    .withPassword("shippingpass");
 
-    @Container
     static final KafkaContainer KAFKA =
-            new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:7.5.0"))
-                    .withReuse(true);
+            new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:7.5.0"));
+
+    static {
+        // Singleton lifecycle: start once per JVM, shared across all IT classes + cached context.
+        POSTGRES.start();
+        KAFKA.start();
+    }
 
     @DynamicPropertySource
     static void registerProperties(DynamicPropertyRegistry registry) {

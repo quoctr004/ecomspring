@@ -1,12 +1,14 @@
 package com.hieu.voucher_service;
 
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.ActiveProfiles;
 
-@SpringBootTest
-@ActiveProfiles("test")
-class VoucherServiceApplicationTests {
+/**
+ * Boots the full application context. Extends {@link AbstractIntegrationTest} so the
+ * context starts against real Postgres + Kafka (Testcontainers) under the {@code test}
+ * profile — the test config supplies no datasource of its own, so without the shared
+ * containers the context would fall back to the (unavailable) localhost database.
+ */
+class VoucherServiceApplicationTests extends AbstractIntegrationTest {
 
     @Test
     void contextLoads() {

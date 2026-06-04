@@ -7,8 +7,6 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.kafka.KafkaContainer;
 import org.testcontainers.utility.DockerImageName;
 
@@ -18,30 +16,30 @@ import org.testcontainers.utility.DockerImageName;
  */
 @SpringBootTest
 @ActiveProfiles("test")
-@Testcontainers
 @TestPropertySource(properties = {
         "eureka.client.enabled=false",
         "spring.cloud.discovery.enabled=false"
 })
 public abstract class AbstractIntegrationTest {
 
-    @Container
     static final PostgreSQLContainer<?> POSTGRES =
             new PostgreSQLContainer<>(DockerImageName.parse("postgres:16-alpine"))
                     .withDatabaseName("flashsaledb")
                     .withUsername("flashsaleuser")
-                    .withPassword("flashsalepass")
-                    .withReuse(true);
+                    .withPassword("flashsalepass");
 
-    @Container
     static final RedisContainer REDIS =
-            new RedisContainer(DockerImageName.parse("redis:7-alpine"))
-                    .withReuse(true);
+            new RedisContainer(DockerImageName.parse("redis:7-alpine"));
 
-    @Container
     static final KafkaContainer KAFKA =
-            new KafkaContainer(DockerImageName.parse("apache/kafka:3.8.0"))
-                    .withReuse(true);
+            new KafkaContainer(DockerImageName.parse("apache/kafka:3.8.0"));
+
+    static {
+        // Singleton lifecycle: start once per JVM, shared across all IT classes + cached context.
+        POSTGRES.start();
+        REDIS.start();
+        KAFKA.start();
+    }
 
     @DynamicPropertySource
     static void registerProperties(DynamicPropertyRegistry registry) {

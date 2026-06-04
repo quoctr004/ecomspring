@@ -37,7 +37,7 @@ class NotificationApplicationServiceIT extends AbstractIntegrationTest {
 
     @BeforeEach
     void cleanDb() {
-        notificationRepository.deleteAll();
+        notificationRepository.deleteAll().block();
     }
 
     private SendNotificationRequest buildRequest(String userId, String refId) {
@@ -57,12 +57,12 @@ class NotificationApplicationServiceIT extends AbstractIntegrationTest {
         String userId = "user-" + UUID.randomUUID();
         String refId = "ORD-" + UUID.randomUUID();
 
-        NotificationDTO dto = notificationService.send(buildRequest(userId, refId));
+        NotificationDTO dto = notificationService.send(buildRequest(userId, refId)).block();
 
         assertThat(dto).isNotNull();
         assertThat(dto.userId()).isEqualTo(userId);
 
-        long count = notificationRepository.count();
+        long count = notificationRepository.count().block();
         assertThat(count).isEqualTo(1);
     }
 
@@ -73,13 +73,13 @@ class NotificationApplicationServiceIT extends AbstractIntegrationTest {
         String refId = "ORD-" + UUID.randomUUID();
         var req = buildRequest(userId, refId);
 
-        NotificationDTO first = notificationService.send(req);
-        NotificationDTO second = notificationService.send(req); // must not throw
+        NotificationDTO first = notificationService.send(req).block();
+        NotificationDTO second = notificationService.send(req).block(); // must not throw
 
         assertThat(first).isNotNull();
         assertThat(second).isNotNull();
 
-        long count = notificationRepository.count();
+        long count = notificationRepository.count().block();
         assertThat(count).isEqualTo(1);
     }
 
@@ -103,7 +103,7 @@ class NotificationApplicationServiceIT extends AbstractIntegrationTest {
             futures.add(executor.submit(() -> {
                 try {
                     startLatch.await();
-                    notificationService.send(req);
+                    notificationService.send(req).block();
                     successCount.incrementAndGet();
                 } catch (Exception e) {
                     errorCount.incrementAndGet();
@@ -117,7 +117,7 @@ class NotificationApplicationServiceIT extends AbstractIntegrationTest {
         doneLatch.await();
         executor.shutdown();
 
-        long count = notificationRepository.count();
+        long count = notificationRepository.count().block();
         assertThat(count).isEqualTo(1);
         assertThat(successCount.get() + errorCount.get()).isEqualTo(threads);
     }

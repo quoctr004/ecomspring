@@ -3,10 +3,10 @@ spring:
     import: optional:file:.env[.properties]
   application:
     name: notification-service
-  mongodb:
-    uri: ${MONGODB_URI:mongodb://localhost:27017/notificationdb}
-    auto-index-creation: true
   data:
+    mongodb:
+      uri: ${MONGODB_URI:mongodb://localhost:27017/notificationdb}
+      auto-index-creation: true
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}

@@ -15,6 +15,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -29,6 +31,10 @@ import static org.mockito.Mockito.*;
  * No Spring context — uses Mockito to wire the service.
  */
 @ExtendWith(MockitoExtension.class)
+// Shared givenVoucher(...) helper stubs save() calls that validation-failure tests never
+// reach (they throw before persisting). Lenient strictness keeps those shared stubs from
+// being flagged as unnecessary while still exercising the real validation paths.
+@MockitoSettings(strictness = Strictness.LENIENT)
 @DisplayName("Voucher domain logic (unit)")
 class VoucherTest {
 
@@ -211,6 +217,7 @@ class VoucherTest {
             var entity = build(new VoucherSpec(
                     "FIXED_AMOUNT", BigDecimal.valueOf(20_000), null,
                     null, 10, 4, null));
+            entity.setId(1L);   // releaseVoucher matches entity.id against the usage record's voucherId
 
             var usageRecord = new com.hieu.voucher_service.entity.VoucherUsageRecord(
                     1L, "u1", "o1");

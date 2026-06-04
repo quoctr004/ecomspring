@@ -13,6 +13,7 @@ import com.hieu.auth_service.application.common.CommandHandler;
 import com.hieu.auth_service.application.dto.AuthResponseDTO;
 import com.hieu.auth_service.application.mapper.UserDtoMapper;
 import com.hieu.auth_service.domain.models.refreshtoken.RefreshToken;
+import com.hieu.auth_service.domain.models.refreshtoken.exceptions.TokenReuseDetectedException;
 import com.hieu.auth_service.domain.models.refreshtoken.exceptions.TokenRevokedException;
 import com.hieu.auth_service.domain.models.refreshtoken.vo.TokenValue;
 import com.hieu.auth_service.domain.models.role.Role;
@@ -47,7 +48,10 @@ public class RefreshTokenHandler implements CommandHandler<RefreshTokenCommand, 
     private int refreshExpiryDays;
 
     @Override
-    @Transactional
+    // Reuse detection revokes the whole family as a side effect *and then* throws. That
+    // family revocation must survive — so this exception must NOT roll the transaction back,
+    // unlike every other failure here (bad/expired token) where rollback is correct.
+    @Transactional(noRollbackFor = TokenReuseDetectedException.class)
     public AuthResponseDTO handle(RefreshTokenCommand command) {
         // Pessimistic lock on the token row: two concurrent refreshes of the same
         // token serialize so the second one sees a now-revoked token and triggers

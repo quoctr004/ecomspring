@@ -33,7 +33,7 @@ class OrderTest {
     static Order aPlacedOrder() {
         var o = Order.create(
                 UserId.of(USER_UUID),
-                OrderNumber.of("ORD-2026-0001"),
+                OrderNumber.of("ORD-20260101-000001"),
                 RecipientName.of("Nguyen Van A"),
                 RecipientPhone.of("0901234567"),
                 new ShippingAddress("123 Le Loi", "Ben Thanh", "District 1", "Ho Chi Minh", "VN", "70000"),
@@ -49,7 +49,7 @@ class OrderTest {
     static Order aPlacedOrderWithVoucher(String voucherCode) {
         var o = Order.create(
                 UserId.of(USER_UUID),
-                OrderNumber.of("ORD-2026-0002"),
+                OrderNumber.of("ORD-20260101-000002"),
                 RecipientName.of("Nguyen Van A"),
                 RecipientPhone.of("0901234567"),
                 new ShippingAddress("123 Le Loi", "Ben Thanh", "District 1", "Ho Chi Minh", "VN", "70000"),
@@ -197,9 +197,9 @@ class OrderTest {
         @DisplayName("recalculate sau addItem → subtotal tăng, total đúng")
         void recalculate_afterAddItem_isCorrect() {
             var o = Order.create(
-                    UserId.of(USER_UUID), OrderNumber.of("ORD-2026-0099"),
+                    UserId.of(USER_UUID), OrderNumber.of("ORD-20260101-000099"),
                     RecipientName.of("A"), RecipientPhone.of("0900000001"),
-                    new ShippingAddress("s", "w", "d", "c", "VN", "0"),
+                    new ShippingAddress("s", "w", "d", "c", "VN", "70000"),
                     "COD", null, null, "idem-rc", USER_UUID);
             o.assignId(99L);
 

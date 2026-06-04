@@ -120,7 +120,7 @@ class OrderOutboxIntegrationTest {
                 new BigDecimal("10.00"), 1
         );
         return new CreateOrderCommand(
-                "user-" + seq,
+                java.util.UUID.randomUUID().toString(),
                 List.of(item),
                 "Recipient " + seq,
                 "09" + String.format("%08d", seq),

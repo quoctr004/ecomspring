@@ -7,8 +7,6 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.KafkaContainer;
 import org.testcontainers.elasticsearch.ElasticsearchContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
 /**
@@ -19,22 +17,23 @@ import org.testcontainers.utility.DockerImageName;
  */
 @SpringBootTest
 @ActiveProfiles("test")
-@Testcontainers
 @ExtendWith(org.springframework.test.context.junit.jupiter.SpringExtension.class)
 public abstract class AbstractIntegrationTest {
 
-    @Container
     static final ElasticsearchContainer ELASTICSEARCH =
             new ElasticsearchContainer(
                     DockerImageName.parse("docker.elastic.co/elasticsearch/elasticsearch:9.0.0"))
                     .withEnv("discovery.type", "single-node")
-                    .withEnv("xpack.security.enabled", "false")
-                    .withReuse(true);
+                    .withEnv("xpack.security.enabled", "false");
 
-    @Container
     static final KafkaContainer KAFKA =
-            new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:7.5.0"))
-                    .withReuse(true);
+            new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:7.5.0"));
+
+    static {
+        // Singleton lifecycle: start once per JVM, shared across all IT classes + cached context.
+        ELASTICSEARCH.start();
+        KAFKA.start();
+    }
 
     @DynamicPropertySource
     static void registerProperties(DynamicPropertyRegistry registry) {

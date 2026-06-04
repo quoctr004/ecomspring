@@ -44,7 +44,7 @@ class OrderTest {
     static OrderFixture fixture() {
         return new OrderFixture(
                 UserId.of(USER_UUID),
-                OrderNumber.of("ORD-2026-0001"),
+                OrderNumber.of("ORD-20260101-000001"),
                 RecipientName.of("Nguyen Van A"),
                 RecipientPhone.of("0901234567"),
                 new ShippingAddress("123 Le Loi", "Ben Thanh", "District 1", "Ho Chi Minh", "VN", "70000")

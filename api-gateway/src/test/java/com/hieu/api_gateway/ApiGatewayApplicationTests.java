@@ -19,6 +19,9 @@ import org.springframework.test.context.TestPropertySource;
         "eureka.client.register-with-eureka=false",
         "eureka.client.fetch-registry=false",
         "spring.cloud.discovery.enabled=false",
+        // Discovery is disabled above, so the gateway's discovery-based route locator has no
+        // ReactiveDiscoveryClient to bind to — turn it off too (static routes still load).
+        "spring.cloud.gateway.server.webflux.discovery.locator.enabled=false",
         "spring.data.redis.host=localhost",
         "spring.data.redis.port=6379"
 })

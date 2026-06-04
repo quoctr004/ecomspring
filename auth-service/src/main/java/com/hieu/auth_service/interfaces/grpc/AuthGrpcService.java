@@ -108,7 +108,9 @@ public class AuthGrpcService extends AuthServiceGrpc.AuthServiceImplBase {
                             && dto.accountNonExpired() && dto.credentialsNonExpired());
             if (dto.roles() != null)        reply.addAllRoles(dto.roles());
             if (dto.permissions() != null)  reply.addAllPermissions(dto.permissions());
-        } catch (UserNotFoundException notFound) {
+        } catch (UserNotFoundException | IllegalArgumentException notFound) {
+            // Unknown id OR a malformed (non-UUID) id are both "no such user" to callers —
+            // honour the found=false contract instead of leaking an error status.
             reply.setFound(false);
         }
         observer.onNext(reply.build());
